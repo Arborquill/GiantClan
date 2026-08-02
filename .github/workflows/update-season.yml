@@ -1,4 +1,4 @@
-name: iantClan Season Auto Update
+name: GiantClan Season Auto Update
 
 on:
   workflow_dispatch:
