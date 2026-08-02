@@ -15,6 +15,7 @@ jobs:
         run: |
           pwd
           ls -la
+          find . -maxdepth 2 -type f
 
       - name: Setup Node
         uses: actions/setup-node@v5
