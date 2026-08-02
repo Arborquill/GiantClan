@@ -3,6 +3,10 @@ name: Update Notion Season Image
 on:
   workflow_dispatch:
 
+  repository_dispatch:
+    types:
+      - notion_update
+
 jobs:
   update-image:
     runs-on: ubuntu-latest
@@ -10,15 +14,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-
-      - name: List repository contents
-        run: |
-          echo "Current folder:"
-          pwd
-          echo "Files:"
-          ls -la
-          echo "All files:"
-          find . -maxdepth 2 -type f | sort
 
       - name: Setup Node
         uses: actions/setup-node@v5
