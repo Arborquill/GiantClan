@@ -3,9 +3,8 @@ name: Update Notion Season Image
 on:
   workflow_dispatch:
 
-  repository_dispatch:
-    types:
-      - notion_update
+  schedule:
+    - cron: "*/5 * * * *"
 
 jobs:
   update-image:
