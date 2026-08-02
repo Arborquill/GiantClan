@@ -41,6 +41,61 @@ const seasonImages = {
 
 
 // ================================
+// FIND REFRESH REQUEST
+// ================================
+
+async function findRefreshRequest() {
+
+  const response = await notion.dataSources.query({
+
+    data_source_id: DATABASE_ID,
+
+    filter: {
+      property: "Refresh Image",
+      checkbox: {
+        equals: true,
+      },
+    },
+
+  });
+
+
+  if (response.results.length === 0) {
+
+    return null;
+
+  }
+
+
+  return response.results[0];
+
+}
+
+
+// ================================
+// CLEAR REFRESH CHECKBOX
+// ================================
+
+async function clearRefreshRequest(pageId) {
+
+  await notion.pages.update({
+
+    page_id: pageId,
+
+    properties: {
+
+      "Refresh Image": {
+        checkbox: false,
+      },
+
+    },
+
+  });
+
+}
+
+
+// ================================
 // FIND CURRENT SEASON
 // ================================
 
@@ -51,17 +106,22 @@ async function findCurrentSeason() {
     data_source_id: DATABASE_ID,
 
     filter: {
+
       property: "Played",
+
       checkbox: {
         equals: true,
       },
+
     },
 
     sorts: [
+
       {
         property: "Date",
         direction: "descending",
       },
+
     ],
 
     page_size: 1,
@@ -69,7 +129,6 @@ async function findCurrentSeason() {
   });
 
 
-  // No played seasons
   if (response.results.length === 0) {
 
     console.log(
@@ -100,7 +159,6 @@ async function findCurrentSeason() {
   );
 
 
-  // Must have exactly one season
   if (seasons.length !== 1) {
 
     console.log(
@@ -118,7 +176,7 @@ async function findCurrentSeason() {
 
 
 // ================================
-// READ LAST SAVED SEASON
+// LAST SEASON MEMORY
 // ================================
 
 function getLastSeason() {
@@ -139,10 +197,6 @@ function getLastSeason() {
 
 }
 
-
-// ================================
-// SAVE LAST SEASON
-// ================================
 
 function saveLastSeason(season) {
 
@@ -165,9 +219,11 @@ async function updateImage(imageUrl) {
     block_id: IMAGE_BLOCK_ID,
 
     image: {
+
       external: {
         url: imageUrl,
       },
+
     },
 
   });
@@ -182,6 +238,13 @@ async function updateImage(imageUrl) {
 async function main() {
 
   try {
+
+    const refreshRequest =
+      await findRefreshRequest();
+
+
+    const forceUpdate =
+      refreshRequest !== null;
 
 
     const currentSeason =
@@ -204,10 +267,16 @@ async function main() {
     );
 
 
-    // Skip only if a real season has not changed
+    console.log(
+      "Force update:",
+      forceUpdate
+    );
+
+
     if (
       currentSeason === previousSeason &&
-      currentSeason !== "ERROR"
+      currentSeason !== "ERROR" &&
+      !forceUpdate
     ) {
 
       console.log(
@@ -236,11 +305,23 @@ async function main() {
     await updateImage(image);
 
 
-    // Only remember real seasons
     if (currentSeason !== "ERROR") {
 
       saveLastSeason(
         currentSeason
+      );
+
+    }
+
+
+    if (forceUpdate) {
+
+      await clearRefreshRequest(
+        refreshRequest.id
+      );
+
+      console.log(
+        "Refresh checkbox cleared."
       );
 
     }
