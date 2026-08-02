@@ -19,7 +19,9 @@ const IMAGE_BLOCK_ID = "3af9cd66-e972-8108-9e1f-d620bde59c95";
 const LAST_SEASON_FILE = "last-season.txt";
 
 
+// GitHub hosted images
 const seasonImages = {
+
   "Newleaf":
     "https://raw.githubusercontent.com/Arborquill/GiantClan/main/Newleaf.png",
 
@@ -34,6 +36,7 @@ const seasonImages = {
 
   "ERROR":
     "https://raw.githubusercontent.com/Arborquill/GiantClan/main/Camp_error.png",
+
 };
 
 
@@ -62,24 +65,92 @@ async function findCurrentSeason() {
     ],
 
     page_size: 1,
+
   });
 
 
+  // No played seasons
   if (response.results.length === 0) {
+
+    console.log(
+      "No played seasons found."
+    );
+
     return "ERROR";
+
   }
 
 
+  const page = response.results[0];
+
+
   const seasons =
-    response.results[0].properties.Season.multi_select;
+    page.properties.Season.multi_select;
 
 
+  console.log(
+    "Latest played:",
+    page.properties.Name.title[0]?.plain_text
+  );
+
+
+  console.log(
+    "Seasons:",
+    seasons.map(s => s.name)
+  );
+
+
+  // Must have exactly one season
   if (seasons.length !== 1) {
+
+    console.log(
+      "Invalid season count."
+    );
+
     return "ERROR";
+
   }
 
 
   return seasons[0].name;
+
+}
+
+
+// ================================
+// READ LAST SAVED SEASON
+// ================================
+
+function getLastSeason() {
+
+  if (!fs.existsSync(LAST_SEASON_FILE)) {
+
+    return "";
+
+  }
+
+
+  return fs
+    .readFileSync(
+      LAST_SEASON_FILE,
+      "utf8"
+    )
+    .trim();
+
+}
+
+
+// ================================
+// SAVE LAST SEASON
+// ================================
+
+function saveLastSeason(season) {
+
+  fs.writeFileSync(
+    LAST_SEASON_FILE,
+    season
+  );
+
 }
 
 
@@ -110,55 +181,89 @@ async function updateImage(imageUrl) {
 
 async function main() {
 
-  const currentSeason = await findCurrentSeason();
+  try {
 
 
-  let previousSeason = "";
-
-  if (fs.existsSync(LAST_SEASON_FILE)) {
-
-    previousSeason =
-      fs.readFileSync(
-        LAST_SEASON_FILE,
-        "utf8"
-      ).trim();
-
-  }
+    const currentSeason =
+      await findCurrentSeason();
 
 
-  console.log("Current:", currentSeason);
-  console.log("Previous:", previousSeason);
+    const previousSeason =
+      getLastSeason();
 
-
-  if (currentSeason === previousSeason) {
 
     console.log(
-      "No season change. Skipping update."
+      "Current season:",
+      currentSeason
     );
 
-    return;
+
+    console.log(
+      "Previous season:",
+      previousSeason
+    );
+
+
+    // Skip only if a real season has not changed
+    if (
+      currentSeason === previousSeason &&
+      currentSeason !== "ERROR"
+    ) {
+
+      console.log(
+        "No season change. Skipping update."
+      );
+
+      return;
+
+    }
+
+
+    const image =
+      seasonImages[currentSeason] ||
+      seasonImages.ERROR;
+
+
+    console.log(
+      "Updating image:"
+    );
+
+    console.log(
+      image
+    );
+
+
+    await updateImage(image);
+
+
+    // Only remember real seasons
+    if (currentSeason !== "ERROR") {
+
+      saveLastSeason(
+        currentSeason
+      );
+
+    }
+
+
+    console.log(
+      "Image update complete."
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "ERROR:"
+    );
+
+    console.error(
+      error.message
+    );
+
+    process.exit(1);
 
   }
-
-
-  const image =
-    seasonImages[currentSeason] ||
-    seasonImages.ERROR;
-
-
-  await updateImage(image);
-
-
-  fs.writeFileSync(
-    LAST_SEASON_FILE,
-    currentSeason
-  );
-
-
-  console.log(
-    "Season updated to:",
-    currentSeason
-  );
 
 }
 
