@@ -1,4 +1,4 @@
-name: Update Notion Season Image
+name: iantClan Season Auto Update
 
 on:
   workflow_dispatch:
