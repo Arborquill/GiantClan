@@ -4,27 +4,30 @@ from notion_client import Client
 
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
 
-ALL_CATS_ID = "9849cd66e9728390b14201cdd6b8b3a6"
-EVENTS_ID = "3b79cd66e97280d0aa83de1c481c6ef6"
+ALL_CATS_DATA_SOURCE_ID = "cf09cd66-e972-8293-8c29-073c01330f5b"
+EVENTS_DATA_SOURCE_ID = "3b79cd66-e972-8014-9954-000b6da417a8"
 
 notion = Client(auth=NOTION_TOKEN)
 
 
-def inspect_database(name, database_id):
+def inspect_data_source(name, data_source_id):
     print()
     print("=" * 70)
     print(name)
     print("=" * 70)
 
-    database = notion.databases.retrieve(database_id=database_id)
+    data_source = notion.request(
+        method="GET",
+        endpoint=f"data_sources/{data_source_id}"
+    )
 
     print()
     print("Top-level keys returned by Notion:")
-    print(list(database.keys()))
+    print(list(data_source.keys()))
 
     print()
-    print("Database object:")
-    print(json.dumps(database, indent=2))
+    print("Data source properties:")
+    print(json.dumps(data_source.get("properties", {}), indent=2))
 
     print()
     print("=" * 70)
@@ -33,11 +36,18 @@ def inspect_database(name, database_id):
 print("Connecting to Notion...")
 print("Connection successful.")
 
-inspect_database("ALL CATS", ALL_CATS_ID)
-inspect_database("HISTORICAL EVENTS", EVENTS_ID)
+inspect_data_source(
+    "ALL CATS DATA SOURCE",
+    ALL_CATS_DATA_SOURCE_ID
+)
+
+inspect_data_source(
+    "HISTORICAL EVENTS DATA SOURCE",
+    EVENTS_DATA_SOURCE_ID
+)
 
 print()
 print("=" * 70)
-print("Inspection complete.")
+print("Schema inspection complete.")
 print("No Notion pages or properties were modified.")
 print("=" * 70)
