@@ -1,31 +1,43 @@
-name: Test Notion Connection
+import os
+import json
+from notion_client import Client
 
-on:
-  workflow_dispatch:
+NOTION_TOKEN = os.environ["NOTION_TOKEN"]
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
+ALL_CATS_ID = "9849cd66e9728390b14201cdd6b8b3a6"
+EVENTS_ID = "3b79cd66e97280d0aa83de1c481c6ef6"
 
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+notion = Client(auth=NOTION_TOKEN)
 
-      - name: Show repository files
-        run: |
-          pwd
-          ls -la
-          find . -maxdepth 2 -type f | sort
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
+def inspect_database(name, database_id):
+    print()
+    print("=" * 70)
+    print(name)
+    print("=" * 70)
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+    database = notion.databases.retrieve(database_id=database_id)
 
-      - name: Test Notion connection
-        env:
-          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-        run: python test_notion.py
+    print()
+    print("Top-level keys returned by Notion:")
+    print(list(database.keys()))
+
+    print()
+    print("Database object:")
+    print(json.dumps(database, indent=2))
+
+    print()
+    print("=" * 70)
+
+
+print("Connecting to Notion...")
+print("Connection successful.")
+
+inspect_database("ALL CATS", ALL_CATS_ID)
+inspect_database("HISTORICAL EVENTS", EVENTS_ID)
+
+print()
+print("=" * 70)
+print("Inspection complete.")
+print("No Notion pages or properties were modified.")
+print("=" * 70)
