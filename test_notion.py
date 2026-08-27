@@ -16,18 +16,18 @@ def inspect_data_source(name, data_source_id):
     print(name)
     print("=" * 70)
 
-    data_source = notion.request(
-        method="GET",
-        endpoint=f"data_sources/{data_source_id}"
+    response = notion.request(
+        path=f"/data_sources/{data_source_id}",
+        method="GET"
     )
 
     print()
     print("Top-level keys returned by Notion:")
-    print(list(data_source.keys()))
+    print(list(response.keys()))
 
     print()
     print("Data source properties:")
-    print(json.dumps(data_source.get("properties", {}), indent=2))
+    print(json.dumps(response.get("properties", {}), indent=2))
 
     print()
     print("=" * 70)
