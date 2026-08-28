@@ -1,15 +1,12 @@
 import os
-import requests
+import json
+import urllib.request
 
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
 EVENTS_DATABASE_ID = os.environ["EVENTS_DATABASE_ID"]
 CATS_DATABASE_ID = os.environ["CATS_DATABASE_ID"]
 
-HEADERS = {
-    "Authorization": f"Bearer {NOTION_TOKEN}",
-    "Notion-Version": "2022-06-28",
-    "Content-Type": "application/json",
-}
+NOTION_VERSION = "2022-06-28"
 
 TARGET_EVENT_TITLE = "While out on a secret date, Cliffshock and Blackchirp find an orphaned litter of kits in the wreckage of a dead monster. It isn't the direction they expected their lives to be tugged, but their hearts brim with love for them. Their gentle touch and affectionate purrs are the kits’ home now."
 
@@ -34,25 +31,45 @@ TARGET_PROPERTIES = {
 }
 
 
+def notion_request(url, method="GET", body=None):
+    headers = {
+        "Authorization": f"Bearer {NOTION_TOKEN}",
+        "Notion-Version": NOTION_VERSION,
+        "Content-Type": "application/json",
+    }
+
+    data = None
+
+    if body is not None:
+        data = json.dumps(body).encode("utf-8")
+
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers=headers,
+        method=method,
+    )
+
+    with urllib.request.urlopen(request) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
 def get_pages(database_id):
     pages = []
     cursor = None
 
     while True:
-        payload = {}
+        body = {}
 
         if cursor:
-            payload["start_cursor"] = cursor
+            body["start_cursor"] = cursor
 
-        response = requests.post(
+        data = notion_request(
             f"https://api.notion.com/v1/databases/{database_id}/query",
-            headers=HEADERS,
-            json=payload,
+            method="POST",
+            body=body,
         )
 
-        response.raise_for_status()
-
-        data = response.json()
         pages.extend(data.get("results", []))
 
         if not data.get("has_more"):
@@ -88,9 +105,11 @@ def get_relation_ids(page, property_name):
     if property_data.get("type") != "relation":
         return []
 
+    relation = property_data.get("relation", [])
+
     return [
         item.get("id")
-        for item in property_data.get("relation", [])
+        for item in relation
         if item.get("id")
     ]
 
