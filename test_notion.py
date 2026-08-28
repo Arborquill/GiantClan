@@ -11,6 +11,7 @@ CATS_DATA_SOURCE_ID = "cf09cd66-e972-8293-8c29-073c01330f5b"
 
 notion = Client(auth=NOTION_TOKEN)
 
+
 # ============================================================
 # TARGET EVENT
 # ============================================================
@@ -182,6 +183,7 @@ print("EVENT RELATIONSHIP BUILD")
 print("=" * 70)
 print()
 
+
 # ============================================================
 # RETRIEVE EVENT
 # ============================================================
@@ -212,7 +214,9 @@ print("=" * 70)
 print("EVENT")
 print("=" * 70)
 
-print(get_title(event))
+event_title = get_title(event)
+
+print(event_title)
 
 print()
 print("Event ID:")
@@ -221,6 +225,14 @@ print(event_id)
 
 # ============================================================
 # GET DIRECT PARTICIPANTS
+# ============================================================
+#
+# ONLY cats directly listed in Subject Cat or Related Cats
+# can ever appear in the Event relationship properties.
+#
+# A participant's personal relationships do NOT automatically
+# make those cats Event participants.
+#
 # ============================================================
 
 subject_ids = get_relation_ids(
@@ -319,6 +331,25 @@ print(relationship_types)
 # ============================================================
 # CALCULATE EVENT RELATIONS
 # ============================================================
+#
+# IMPORTANT:
+#
+# If Relationship Type is BLANK:
+#     Do NOT modify any Event relationship properties.
+#
+# If Relationship Type contains a relationship:
+#     Calculate that relationship using ONLY direct participants.
+#
+# If the relationship exists between participants:
+#     Store the matching participant(s).
+#
+# If the relationship type exists but there is NO matching
+# relationship between the participants:
+#     Store an EMPTY relation.
+#
+# This last case intentionally clears stale Event relations.
+#
+# ============================================================
 
 participant_set = set(
     participant_ids
@@ -330,6 +361,7 @@ print()
 print("=" * 70)
 print("CALCULATED EVENT RELATIONS")
 print("=" * 70)
+
 
 if not relationship_types:
 
@@ -376,8 +408,7 @@ for relationship_type in relationship_types:
     matching_ids = set()
 
     # --------------------------------------------------------
-    # Only consider relationships between cats who are
-    # direct participants in THIS event.
+    # ONLY examine relationships between direct participants.
     # --------------------------------------------------------
 
     for participant_id in participant_ids:
@@ -402,7 +433,14 @@ for relationship_type in relationship_types:
                     related_cat_id
                 )
 
-    # Preserve the Event participant order.
+    # --------------------------------------------------------
+    # Preserve the Event's participant order.
+    #
+    # If nothing matched, this becomes [].
+    # That is intentional and will clear the corresponding
+    # Event relationship property.
+    # --------------------------------------------------------
+
     ordered_ids = [
         cat_id
         for cat_id in participant_ids
@@ -415,7 +453,14 @@ for relationship_type in relationship_types:
 
     if not ordered_ids:
 
-        print("[NONE]")
+        print(
+            "[NONE]"
+        )
+
+        print(
+            "The Event relationship property "
+            "will be cleared."
+        )
 
     else:
 
@@ -441,6 +486,7 @@ print("FINAL EVENT PROPERTY VALUES")
 print("=" * 70)
 
 properties_to_update = {}
+
 
 for relationship_type in relationship_types:
 
@@ -477,11 +523,18 @@ print("=" * 70)
 print("UPDATING EVENT")
 print("=" * 70)
 
+
 if not properties_to_update:
 
     print(
         "No relationship properties need updating."
     )
+
+    if not relationship_types:
+
+        print(
+            "Reason: Relationship Type is blank."
+        )
 
 else:
 
@@ -504,6 +557,7 @@ print()
 print("=" * 70)
 print("READ-BACK VERIFICATION")
 print("=" * 70)
+
 
 if not properties_to_update:
 
@@ -528,6 +582,7 @@ else:
     )
 
     verification_failed = False
+
 
     for relationship_type in relationship_types:
 
@@ -559,6 +614,7 @@ else:
 
             continue
 
+
         actual_ids = [
             item["id"]
             for item in property_data.get(
@@ -568,6 +624,7 @@ else:
             if item.get("id")
         ]
 
+
         print()
         print(event_property + ":")
         print("Expected:")
@@ -576,13 +633,18 @@ else:
         print("Stored:")
         print(actual_ids)
 
+
         if actual_ids == expected_ids:
 
-            print("VERIFICATION: PASS")
+            print(
+                "VERIFICATION: PASS"
+            )
 
         else:
 
-            print("VERIFICATION: FAIL")
+            print(
+                "VERIFICATION: FAIL"
+            )
 
             verification_failed = True
 
@@ -596,11 +658,15 @@ print("=" * 70)
 print("BUILD COMPLETE")
 print("=" * 70)
 
+
 if not relationship_types:
 
     print(
-        "SUCCESS: Event has no relationship types. "
-        "No Event relations were changed."
+        "SUCCESS: Event has no relationship types."
+    )
+
+    print(
+        "No Event relationship properties were changed."
     )
 
 elif verification_failed:
@@ -617,6 +683,11 @@ else:
         "were stored correctly."
     )
 
+
 print()
-print("No All Cats pages were modified.")
+print(
+    "Only the Event was modified. "
+    "No All Cats pages were modified."
+)
+
 print("=" * 70)
