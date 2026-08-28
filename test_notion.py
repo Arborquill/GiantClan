@@ -9,7 +9,7 @@ MAPLEPAW_ID = "3c09cd66-e972-80f9-9355-c0df84dd19ec"
 notion = Client(auth=NOTION_TOKEN)
 
 print("=" * 70)
-print("LITTER EVENT RELATIONSHIP LOGIC TEST")
+print("LITTER EVENT PARTICIPATION TEST")
 print("=" * 70)
 print("READ ONLY - NOTHING WILL BE CHANGED")
 print()
@@ -20,217 +20,127 @@ print("Connection successful.")
 print()
 
 event = notion.pages.retrieve(page_id=EVENT_ID)
-event_properties = event["properties"]
+properties = event["properties"]
 
 print("=" * 70)
 print("EVENT")
 print("=" * 70)
-
 print()
+
 print("Event ID:")
 print(EVENT_ID)
-
 print()
-print("Event title:")
-print(event_properties.get("Event", {}))
 
+print("Event property:")
+print(properties.get("Event"))
 print()
+
 print("=" * 70)
-print("RELATIONSHIP TYPE FORMULA")
+print("SUBJECT CATS")
 print("=" * 70)
-
-relationship_formula = event_properties.get("Relationship Type", {})
-formula_data = relationship_formula.get("formula", {})
-relationship_string = formula_data.get("string", "")
-
 print()
-print("Formula value:")
-print(repr(relationship_string))
 
-relationships = [x.strip() for x in relationship_string.split("·") if x.strip()]
-
+subject = properties.get("Subject Cat")
+print("Raw Subject Cat property:")
+print(subject)
 print()
-print("Detected relationships:")
-print(relationships)
 
+subject_relation = subject.get("relation", [])
+print("Subject Cat relation:")
+print(subject_relation)
 print()
+
 print("=" * 70)
-print("DIRECT EVENT PARTICIPANTS")
+print("RELATED CATS")
 print("=" * 70)
-
-subject_property = event_properties.get("Subject Cat", {})
-related_property = event_properties.get("Related Cats", {})
-
-subject_ids = [x["id"] for x in subject_property.get("relation", [])]
-related_ids = [x["id"] for x in related_property.get("relation", [])]
-
-participant_ids = list(dict.fromkeys(subject_ids + related_ids))
-
 print()
-print("Subject Cat IDs:")
-print(subject_ids)
 
+related = properties.get("Related Cats")
+print("Raw Related Cats property:")
+print(related)
 print()
-print("Related Cats IDs:")
-print(related_ids)
 
+related_relation = related.get("relation", [])
+print("Related Cats relation:")
+print(related_relation)
 print()
-print("ALL DIRECT PARTICIPANT IDs:")
-print(participant_ids)
 
-participant_pages = [notion.pages.retrieve(page_id=x) for x in participant_ids]
-
-participant_names = [
-next(
-(
-item.get("plain_text", "")
-for prop in page["properties"].values()
-if prop.get("type") == "title"
-for item in prop.get("title", [])
-),
-participant_ids[index]
-)
-for index, page in enumerate(participant_pages)
-]
-
-print()
-print("PARTICIPANTS:")
-
-participant_display = [
-print_value
-for print_value in [
-f"{participant_names[index]} -> {participant_ids[index]}"
-for index in range(len(participant_ids))
-]
-]
-
-for value in participant_display:
-print(value)
-
-print()
 print("=" * 70)
-print("MAPLEPAW PARTICIPATION CHECK")
+print("MAPLEPAW")
 print("=" * 70)
-
 print()
-print("Maplepaw:")
+
+print("Maplepaw ID:")
 print(MAPLEPAW_ID)
-
 print()
-print("Is Maplepaw a direct participant?")
-print(MAPLEPAW_ID in participant_ids)
 
+print("Maplepaw appears directly in Subject Cat:")
+print(any(x.get("id") == MAPLEPAW_ID for x in subject_relation))
 print()
+
+print("Maplepaw appears directly in Related Cats:")
+print(any(x.get("id") == MAPLEPAW_ID for x in related_relation))
+print()
+
 print("=" * 70)
-print("SIBLING RELATIONSHIP CHECK")
+print("RELATIONSHIP TYPE")
 print("=" * 70)
-
-sibling_relation_data = [
-(
-participant_names[index],
-participant_ids[index],
-[
-x["id"]
-for x in participant_pages[index]["properties"].get(
-"Siblings", {}
-).get("relation", [])
-]
-)
-for index in range(len(participant_pages))
-]
-
-for name, cat_id, sibling_ids in sibling_relation_data:
 print()
-print(name)
-print("ID:", cat_id)
-print("Existing sibling IDs:", sibling_ids)
-print("Maplepaw is sibling:", MAPLEPAW_ID in sibling_ids)
 
+relationship_type = properties.get("Relationship Type")
+print("Raw property:")
+print(relationship_type)
 print()
+
+formula = relationship_type.get("formula", {})
+print("Formula:")
+print(formula)
+print()
+
+relationship_string = formula.get("string", "")
+print("Formula string:")
+print(repr(relationship_string))
+print()
+
 print("=" * 70)
-print("PARTICIPANT-ONLY SIBLING PAIRS")
+print("RELATIONSHIPS DETECTED")
 print("=" * 70)
-
-sibling_pairs = [
-(
-participant_names[a],
-participant_names[b],
-participant_ids[a],
-participant_ids[b]
-)
-for a in range(len(participant_ids))
-for b in range(a + 1, len(participant_ids))
-if participant_ids[b] in sibling_relation_data[a][2]
-or participant_ids[a] in sibling_relation_data[b][2]
-]
-
 print()
 
-if sibling_pairs:
-for pair in sibling_pairs:
-print(f"{pair[0]} <-> {pair[1]}")
-else:
-print("No sibling pairs found among direct participants.")
-
+print("Parsed relationships:")
+print([x.strip() for x in relationship_string.split("·") if x.strip()])
 print()
+
 print("=" * 70)
-print("MAPLEPAW EXCLUSION TEST")
+print("FINAL PARTICIPATION RULE")
 print("=" * 70)
-
-maplepaw_sibling_pairs = [
-(
-participant_names[index],
-participant_ids[index]
-)
-for index in range(len(participant_ids))
-if MAPLEPAW_ID in sibling_relation_data[index][2]
-]
-
 print()
 
-if MAPLEPAW_ID in participant_ids:
-print("Maplepaw IS a direct participant.")
-print("Maplepaw may legitimately receive relationship-event data.")
-else:
-print("Maplepaw is NOT a direct participant.")
-
+print("Only cats appearing directly in Subject Cat or Related Cats")
+print("are event participants.")
 print()
 
-if maplepaw_sibling_pairs:
-print("Some direct participants have Maplepaw as a sibling:")
-for pair in maplepaw_sibling_pairs:
-print(f"  {pair[0]} <-> Maplepaw")
+print("A cat being the sibling, parent, mate, cohort, mentor, or")
+print("apprentice of a participant does NOT make that cat a participant.")
 print()
-print("IMPORTANT:")
-print("These sibling relationships must NOT cause Maplepaw")
-print("to be added to this event's Sibling Cats property.")
-else:
-print("No direct participant has Maplepaw listed as a sibling.")
 
+print("Maplepaw direct participation:")
+print(MAPLEPAW_ID in [x.get("id") for x in subject_relation + related_relation])
 print()
+
 print("=" * 70)
-print("EXPECTED EVENT-PROPERTY LOGIC")
+print("EXPECTED RESULT FOR MAPLEPAW")
 print("=" * 70)
+print()
 
+print("Maplepaw should be EXCLUDED from this event because he")
+print("is not listed directly in Subject Cat or Related Cats.")
 print()
-print("The event relationship properties must be derived ONLY")
-print("from cats who are direct participants in this event.")
-print()
-print("For Sibling Cats:")
-print("  - Both cats must participate in the event.")
-print("  - They must actually be siblings.")
-print("  - A sibling who does not participate must be excluded.")
-print()
-print("Therefore:")
-print("  Maplepaw must NOT appear in this event's Sibling Cats")
-print("  simply because he is siblings with the kits who participated.")
-print()
-print("This is the same rule we will use for Cohort, Mate, Mentor,")
-print("Apprentice, Parent, and the other relationship categories.")
 
+print("His sibling relationship with the five kits does not")
+print("make him an event participant.")
 print()
-print("=" * 70)
-print("TEST COMPLETE")
+
 print("NO UPDATE API CALLS WERE MADE.")
 print("NO NOTION PAGES OR PROPERTIES WERE MODIFIED.")
 print("=" * 70)
