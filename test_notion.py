@@ -18,15 +18,15 @@ def get_events():
     return response.get("results", [])
 
 
-def get_page_name(page):
+def get_event_name(page):
     properties = page.get("properties", {})
 
-    name_property = properties.get("Event")
+    event_property = properties.get("Event")
 
-    if not name_property:
+    if not event_property:
         return "(no Event property)"
 
-    title_data = name_property.get("title", [])
+    title_data = event_property.get("title", [])
 
     if title_data:
         return title_data[0].get(
@@ -34,10 +34,18 @@ def get_page_name(page):
             "(unnamed)"
         )
 
+    rich_text_data = event_property.get("rich_text", [])
+
+    if rich_text_data:
+        return rich_text_data[0].get(
+            "plain_text",
+            "(unnamed)"
+        )
+
     return "(unnamed)"
 
 
-def get_relationship_type_value(page):
+def get_formula_value(page):
     properties = page.get("properties", {})
 
     relationship_property = properties.get(
@@ -69,6 +77,37 @@ def split_relationship_types(value):
     ]
 
 
+def determine_actions(relationships):
+    actions = []
+
+    if "Cohort" in relationships:
+        actions.append(
+            "Would process the Cohort relationship."
+        )
+
+    if "Mate" in relationships:
+        actions.append(
+            "Would process the Mate relationship."
+        )
+
+    if "Mentor" in relationships:
+        actions.append(
+            "Would process the Mentor relationship."
+        )
+
+    if "Apprentice" in relationships:
+        actions.append(
+            "Would process the Apprentice relationship."
+        )
+
+    if not actions:
+        actions.append(
+            "No recognized relationship action."
+        )
+
+    return actions
+
+
 def main():
     print("Connecting to Notion...")
     print()
@@ -78,7 +117,7 @@ def main():
     print("Connection successful.")
     print()
     print("=" * 70)
-    print("RELATIONSHIP TYPE PARSING TEST")
+    print("RELATIONSHIP DECISION TEST")
     print("=" * 70)
     print("READ ONLY - NOTHING WILL BE CHANGED")
     print()
@@ -94,49 +133,48 @@ def main():
         print(f"EVENT {number}")
         print("-" * 70)
 
-        event_name = get_page_name(event)
-        event_id = event.get("id")
-
-        print(f"Name: {event_name}")
-        print(f"ID: {event_id}")
-        print()
-
         try:
-            formula_value = get_relationship_type_value(event)
+            event_name = get_event_name(event)
+            event_id = event.get("id")
+
+            print(f"Event: {event_name}")
+            print(f"ID: {event_id}")
+            print()
+
+            formula_value = get_formula_value(event)
 
             print("Formula value:")
             print(repr(formula_value))
             print()
 
-            if not formula_value:
-                print("Parsed relationships:")
-                print([])
-                print()
-                print("RESULT: EMPTY")
-                empty += 1
-                continue
-
             relationships = split_relationship_types(
                 formula_value
             )
 
-            print("Parsed relationships:")
+            print("Detected relationships:")
             print(repr(relationships))
             print()
 
-            print("Individual relationship checks:")
+            actions = determine_actions(
+                relationships
+            )
 
-            for relationship in relationships:
-                print(f"  - {relationship}")
+            print("WOULD TAKE THESE ACTIONS:")
+
+            for action in actions:
+                print(f"  - {action}")
 
             print()
+
             print("RESULT: SUCCESS")
             successful += 1
 
         except Exception as error:
             print()
             print("RESULT: FAILED")
-            print(f"Error: {type(error).__name__}: {error}")
+            print(
+                f"Error: {type(error).__name__}: {error}"
+            )
             failed += 1
 
         print()
@@ -144,15 +182,15 @@ def main():
     print("=" * 70)
     print("TEST SUMMARY")
     print("=" * 70)
-    print(f"Successfully parsed: {successful}")
-    print(f"Empty values:        {empty}")
-    print(f"Failed:              {failed}")
+    print(f"Successful decisions: {successful}")
+    print(f"Empty/unknown:         {empty}")
+    print(f"Failed:                {failed}")
     print()
 
     if failed == 0:
-        print("RELATIONSHIP TYPE PARSING TEST PASSED.")
+        print("RELATIONSHIP DECISION TEST PASSED.")
     else:
-        print("RELATIONSHIP TYPE PARSING TEST HAD FAILURES.")
+        print("RELATIONSHIP DECISION TEST HAD FAILURES.")
 
     print()
     print("=" * 70)
