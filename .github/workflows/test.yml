@@ -22,3 +22,6 @@ jobs:
       - name: Test Notion connection
         env:
           NOTION_TOKEN: "${{ secrets.NOTION_TOKEN }}"
+          EVENTS_DATABASE_ID: "3b79cd66e97280d0aa83de1c481c6ef6"
+          CATS_DATABASE_ID: "9849cd66e9728390b14201cdd6b8b3a6"
+        run: python test_notion.py
