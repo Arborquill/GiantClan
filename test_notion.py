@@ -74,13 +74,13 @@ def main():
     print()
 
     print("=" * 70)
-    print("COHORT PROCESSING TEST")
+    print("COHORT WRITE PAYLOAD TEST")
     print("=" * 70)
     print("READ ONLY - NOTHING WILL BE CHANGED")
     print()
 
     # ---------------------------------------------------------------
-    # Retrieve the exact event used by the previous successful tests
+    # Retrieve the known test event
     # ---------------------------------------------------------------
 
     event = notion.pages.retrieve(
@@ -95,17 +95,15 @@ def main():
 
     print("Event:")
     print(event_text)
-    print("ID:")
-    print(TEST_EVENT_ID)
     print()
 
     # ---------------------------------------------------------------
-    # Relationship Type
+    # Read Relationship Type
     # ---------------------------------------------------------------
 
     formula_value = get_relationship_formula(event)
 
-    print("Formula value:")
+    print("Relationship Type:")
     print(repr(formula_value))
     print()
 
@@ -115,8 +113,12 @@ def main():
     print(relationships)
     print()
 
+    if "Cohort" not in relationships:
+        print("ERROR: Cohort relationship was not detected.")
+        return
+
     # ---------------------------------------------------------------
-    # Subject Cats
+    # Get Subject Cats
     # ---------------------------------------------------------------
 
     subject_ids = get_relation_ids(
@@ -130,19 +132,19 @@ def main():
     subject_cats = []
 
     for cat_id in subject_ids:
-        cat_name = get_cat_name(notion, cat_id)
+        name = get_cat_name(notion, cat_id)
 
         subject_cats.append({
             "id": cat_id,
-            "name": cat_name,
+            "name": name,
         })
 
-        print(f"{cat_name}")
+        print(f"{name}")
         print(f"ID: {cat_id}")
         print()
 
     # ---------------------------------------------------------------
-    # Related Cats
+    # Get Related Cats
     # ---------------------------------------------------------------
 
     related_ids = get_relation_ids(
@@ -156,79 +158,132 @@ def main():
     related_cats = []
 
     for cat_id in related_ids:
-        cat_name = get_cat_name(notion, cat_id)
+        name = get_cat_name(notion, cat_id)
 
         related_cats.append({
             "id": cat_id,
-            "name": cat_name,
+            "name": name,
         })
 
-        print(f"{cat_name}")
+        print(f"{name}")
         print(f"ID: {cat_id}")
         print()
 
     # ---------------------------------------------------------------
-    # Cohort detection
+    # Inspect existing Cohort relations
     # ---------------------------------------------------------------
 
     print("-" * 70)
-    print("COHORT PROCESSING")
+    print("EXISTING COHORT RELATIONS")
     print("-" * 70)
 
-    if "Cohort" not in relationships:
-        print("ERROR: Cohort was not detected.")
-        print()
-        print("Expected Relationship Type to contain:")
-        print("Cohort")
-        print()
-        print("Actual formula value:")
-        print(repr(formula_value))
-        return
-
-    print("Cohort relationship detected.")
-    print()
-
-    # ---------------------------------------------------------------
-    # Simulate Cohort processing
-    # ---------------------------------------------------------------
-
-    print("SUBJECT -> RELATED PAIRS")
-    print("-" * 70)
-
-    if not subject_cats:
-        print("No Subject Cats found.")
-    elif not related_cats:
-        print("No Related Cats found.")
-    else:
-        for subject in subject_cats:
-            for related in related_cats:
-                print(
-                    f"{subject['name']} "
-                    f"<-> "
-                    f"{related['name']}"
-                )
-
-    print()
-
-    # ---------------------------------------------------------------
-    # Explicit summary of what would happen
-    # ---------------------------------------------------------------
-
-    print("-" * 70)
-    print("WOULD PERFORM")
-    print("-" * 70)
+    cohort_data = {}
 
     for subject in subject_cats:
-        for related in related_cats:
+        page = notion.pages.retrieve(
+            page_id=subject["id"]
+        )
+
+        cat_properties = page.get("properties", {})
+
+        cohort_property = cat_properties.get("Cohort")
+
+        if not cohort_property:
+            print(f"{subject['name']}: Cohort property NOT FOUND")
+            cohort_data[subject["id"]] = []
+            continue
+
+        if cohort_property.get("type") != "relation":
             print(
-                f"Would add {related['name']} to "
-                f"{subject['name']}'s Cohort relationship."
+                f"{subject['name']}: Cohort property has unexpected "
+                f"type: {cohort_property.get('type')}"
+            )
+            cohort_data[subject["id"]] = []
+            continue
+
+        existing_ids = get_relation_ids(cohort_property)
+
+        cohort_data[subject["id"]] = existing_ids
+
+        print(f"{subject['name']}:")
+        print(f"  Existing Cohort IDs: {existing_ids}")
+
+        if existing_ids:
+            for existing_id in existing_ids:
+                existing_name = get_cat_name(
+                    notion,
+                    existing_id
+                )
+                print(
+                    f"  - {existing_name} "
+                    f"({existing_id})"
+                )
+        else:
+            print("  - No existing Cohort cats.")
+
+        print()
+
+    # ---------------------------------------------------------------
+    # Construct the hypothetical update payload
+    # ---------------------------------------------------------------
+
+    print("-" * 70)
+    print("HYPOTHETICAL UPDATE PAYLOADS")
+    print("-" * 70)
+
+    print("These payloads WOULD be sent to Notion.")
+    print("They are NOT being sent.")
+    print()
+
+    for subject in subject_cats:
+        existing_ids = cohort_data.get(
+            subject["id"],
+            []
+        )
+
+        print(f"{subject['name']}")
+        print()
+
+        for related in related_cats:
+            related_id = related["id"]
+
+            if related_id in existing_ids:
+                print(
+                    f"  {related['name']} is already in "
+                    f"{subject['name']}'s Cohort."
+                )
+                continue
+
+            updated_ids = existing_ids + [related_id]
+
+            payload = {
+                "properties": {
+                    "Cohort": {
+                        "relation": [
+                            {"id": cat_id}
+                            for cat_id in updated_ids
+                        ]
+                    }
+                }
+            }
+
+            print(
+                f"  Would add {related['name']} "
+                f"to {subject['name']}'s Cohort."
             )
 
-    print()
+            print("  Payload:")
+            print(f"  {payload}")
+            print()
+
+    # ---------------------------------------------------------------
+    # Final safety check
+    # ---------------------------------------------------------------
+
     print("=" * 70)
     print("TEST COMPLETE")
-    print("No Notion pages or properties were modified.")
+    print("NO UPDATE API CALLS WERE MADE.")
+    print("NO NOTION PAGES OR PROPERTIES WERE MODIFIED.")
     print("=" * 70)
 
 
