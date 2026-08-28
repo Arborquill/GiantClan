@@ -11,11 +11,22 @@ CATS_DATA_SOURCE_ID = "cf09cd66-e972-8293-8c29-073c01330f5b"
 
 notion = Client(auth=NOTION_TOKEN)
 
-# ------------------------------------------------------------
+# ============================================================
 # TARGET EVENT
-# ------------------------------------------------------------
+# ============================================================
+#
+# Change ONLY this ID when testing a different Event.
+#
+# The Event title is NOT used to find the Event.
+#
+# ============================================================
 
-EVENT_ID = "3c89cd66-e972-80f3-885e-e6bb4c28902e"
+EVENT_ID = "3c29cd66-e972-80f5-9cd9-c9bcc3f87899"
+
+
+# ============================================================
+# RELATIONSHIP MAPPINGS
+# ============================================================
 
 RELATIONSHIP_PROPERTIES = {
     "Kit": "Kits",
@@ -38,11 +49,16 @@ EVENT_RELATION_PROPERTIES = {
 }
 
 
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
+
 def get_database_pages(data_source_id):
     pages = []
     cursor = None
 
     while True:
+
         payload = {}
 
         if cursor:
@@ -53,7 +69,9 @@ def get_database_pages(data_source_id):
             **payload,
         )
 
-        pages.extend(response.get("results", []))
+        pages.extend(
+            response.get("results", [])
+        )
 
         if not response.get("has_more"):
             break
@@ -64,16 +82,25 @@ def get_database_pages(data_source_id):
 
 
 def get_title(page):
-    properties = page.get("properties", {})
+    properties = page.get(
+        "properties",
+        {}
+    )
 
     for property_data in properties.values():
 
         if property_data.get("type") == "title":
 
-            title_items = property_data.get("title", [])
+            title_items = property_data.get(
+                "title",
+                []
+            )
 
             return "".join(
-                item.get("plain_text", "")
+                item.get(
+                    "plain_text",
+                    ""
+                )
                 for item in title_items
             )
 
@@ -81,8 +108,14 @@ def get_title(page):
 
 
 def get_relation_ids(page, property_name):
-    properties = page.get("properties", {})
-    property_data = properties.get(property_name)
+    properties = page.get(
+        "properties",
+        {}
+    )
+
+    property_data = properties.get(
+        property_name
+    )
 
     if not property_data:
         return []
@@ -92,14 +125,23 @@ def get_relation_ids(page, property_name):
 
     return [
         item["id"]
-        for item in property_data.get("relation", [])
+        for item in property_data.get(
+            "relation",
+            []
+        )
         if item.get("id")
     ]
 
 
 def get_formula_string(page, property_name):
-    properties = page.get("properties", {})
-    property_data = properties.get(property_name)
+    properties = page.get(
+        "properties",
+        {}
+    )
+
+    property_data = properties.get(
+        property_name
+    )
 
     if not property_data:
         return ""
@@ -107,10 +149,15 @@ def get_formula_string(page, property_name):
     if property_data.get("type") != "formula":
         return ""
 
-    formula = property_data.get("formula", {})
+    formula = property_data.get(
+        "formula",
+        {}
+    )
 
     if formula.get("type") == "string":
-        return formula.get("string") or ""
+        return formula.get(
+            "string"
+        ) or ""
 
     return ""
 
@@ -126,30 +173,39 @@ def parse_relationship_types(value):
     ]
 
 
+# ============================================================
+# START
+# ============================================================
+
 print("=" * 70)
 print("EVENT RELATIONSHIP BUILD")
 print("=" * 70)
 print()
 
-# ------------------------------------------------------------
-# RETRIEVE DATA
-# ------------------------------------------------------------
+# ============================================================
+# RETRIEVE EVENT
+# ============================================================
 
 print("Retrieving Event...")
+
 event = notion.pages.retrieve(
     page_id=EVENT_ID
 )
 
+event_id = event["id"]
+
 print("Retrieving All Cats pages...")
-cats = get_database_pages(CATS_DATA_SOURCE_ID)
+
+cats = get_database_pages(
+    CATS_DATA_SOURCE_ID
+)
 
 print("Pages retrieved.")
 
-event_id = event["id"]
 
-# ------------------------------------------------------------
-# EVENT
-# ------------------------------------------------------------
+# ============================================================
+# EVENT INFORMATION
+# ============================================================
 
 print()
 print("=" * 70)
@@ -162,9 +218,10 @@ print()
 print("Event ID:")
 print(event_id)
 
-# ------------------------------------------------------------
+
+# ============================================================
 # GET DIRECT PARTICIPANTS
-# ------------------------------------------------------------
+# ============================================================
 
 subject_ids = get_relation_ids(
     event,
@@ -183,12 +240,18 @@ for cat_id in subject_ids + related_ids:
     if cat_id not in participant_ids:
         participant_ids.append(cat_id)
 
+
 print()
 print("=" * 70)
 print("DIRECT PARTICIPANTS")
 print("=" * 70)
 
 print(participant_ids)
+
+
+# ============================================================
+# BUILD CAT LOOKUP
+# ============================================================
 
 cat_by_id = {
     page["id"]: page
@@ -199,13 +262,22 @@ participant_names = {}
 
 for cat_id in participant_ids:
 
-    page = cat_by_id.get(cat_id)
+    page = cat_by_id.get(
+        cat_id
+    )
 
     if page:
-        participant_names[cat_id] = get_title(page)
+
+        participant_names[cat_id] = get_title(
+            page
+        )
 
     else:
-        participant_names[cat_id] = "[CAT NOT FOUND]"
+
+        participant_names[cat_id] = (
+            "[CAT NOT FOUND]"
+        )
+
 
 print()
 
@@ -217,9 +289,10 @@ for cat_id in participant_ids:
         cat_id,
     )
 
-# ------------------------------------------------------------
+
+# ============================================================
 # GET RELATIONSHIP TYPES
-# ------------------------------------------------------------
+# ============================================================
 
 relationship_formula = get_formula_string(
     event,
@@ -229,6 +302,7 @@ relationship_formula = get_formula_string(
 relationship_types = parse_relationship_types(
     relationship_formula
 )
+
 
 print()
 print("=" * 70)
@@ -241,11 +315,14 @@ print(repr(relationship_formula))
 print("Parsed relationship types:")
 print(relationship_types)
 
-# ------------------------------------------------------------
-# CALCULATE EVENT RELATIONS
-# ------------------------------------------------------------
 
-participant_set = set(participant_ids)
+# ============================================================
+# CALCULATE EVENT RELATIONS
+# ============================================================
+
+participant_set = set(
+    participant_ids
+)
 
 results = {}
 
@@ -256,8 +333,15 @@ print("=" * 70)
 
 if not relationship_types:
 
-    print("No relationship types were found.")
-    print("No Event relationship properties will be changed.")
+    print(
+        "No relationship types were found."
+    )
+
+    print(
+        "No Event relationship properties "
+        "will be changed."
+    )
+
 
 for relationship_type in relationship_types:
 
@@ -281,13 +365,20 @@ for relationship_type in relationship_types:
 
     if not source_property or not event_property:
 
-        print("WARNING: Missing property mapping.")
+        print(
+            "WARNING: Missing property mapping."
+        )
 
         results[relationship_type] = []
 
         continue
 
     matching_ids = set()
+
+    # --------------------------------------------------------
+    # Only consider relationships between cats who are
+    # direct participants in THIS event.
+    # --------------------------------------------------------
 
     for participant_id in participant_ids:
 
@@ -311,6 +402,7 @@ for relationship_type in relationship_types:
                     related_cat_id
                 )
 
+    # Preserve the Event participant order.
     ordered_ids = [
         cat_id
         for cat_id in participant_ids
@@ -338,9 +430,10 @@ for relationship_type in relationship_types:
                 cat_id,
             )
 
-# ------------------------------------------------------------
+
+# ============================================================
 # BUILD UPDATE PAYLOAD
-# ------------------------------------------------------------
+# ============================================================
 
 print()
 print("=" * 70)
@@ -374,9 +467,10 @@ for relationship_type in relationship_types:
         ]
     }
 
-# ------------------------------------------------------------
+
+# ============================================================
 # UPDATE EVENT
-# ------------------------------------------------------------
+# ============================================================
 
 print()
 print("=" * 70)
@@ -385,7 +479,9 @@ print("=" * 70)
 
 if not properties_to_update:
 
-    print("No relationship properties need updating.")
+    print(
+        "No relationship properties need updating."
+    )
 
 else:
 
@@ -399,9 +495,10 @@ else:
 
     print("Event updated successfully.")
 
-# ------------------------------------------------------------
-# READ BACK FROM NOTION
-# ------------------------------------------------------------
+
+# ============================================================
+# READ-BACK VERIFICATION
+# ============================================================
 
 print()
 print("=" * 70)
@@ -410,7 +507,9 @@ print("=" * 70)
 
 if not properties_to_update:
 
-    print("Nothing was written, so there is nothing to verify.")
+    print(
+        "Nothing was written, so there is nothing to verify."
+    )
 
 else:
 
@@ -452,7 +551,9 @@ else:
 
             print()
             print(event_property + ":")
-            print("ERROR: Property was not returned.")
+            print(
+                "ERROR: Property was not returned."
+            )
 
             verification_failed = True
 
@@ -485,9 +586,10 @@ else:
 
             verification_failed = True
 
-# ------------------------------------------------------------
+
+# ============================================================
 # FINAL RESULT
-# ------------------------------------------------------------
+# ============================================================
 
 print()
 print("=" * 70)
