@@ -21,15 +21,16 @@ f"data_sources/{EVENTS}/query",
 {}
 )
 
-events = result.get("results", [])
-
-print("Events returned:", len(events))
+print("Query successful.")
+print("Top-level keys returned:")
+print(list(result.keys()))
 print()
 
-for event in events:
-print(event["id"])
-
+print("Number of events returned:")
+print(len(result.get("results", [])))
 print()
+
 print("=" * 70)
 print("TEST COMPLETE")
+print("No Notion pages or properties were modified.")
 print("=" * 70)
