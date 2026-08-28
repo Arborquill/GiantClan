@@ -3,30 +3,59 @@ from notion_client import Client
 
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
 
-HAWKKIT_EVENT_ID = "3c89cd66-e972-8082-9ae3-f4b5c6fe3ca3"
+TARGET_TITLE = "While out on a secret date, Cliffshock and Blackchirp find an orphaned litter of kits in the wreckage of a dead monster. It isn't the direction they expected their lives to be tugged, but their hearts brim with love for them. Their gentle touch and affectionate purrs are the kits’ home now."
+
 MAPLEPAW_ID = "3c09cd66-e972-80f9-9355-c0df84dd19ec"
 
 notion = Client(auth=NOTION_TOKEN)
 
 
-def get_plain_text(value):
-    if not isinstance(value, list):
+def get_title(prop):
+    if not isinstance(prop, dict):
+        return ""
+
+    title_data = prop.get("title", [])
+
+    if not isinstance(title_data, list):
         return ""
 
     parts = []
 
-    for item in value:
+    for item in title_data:
         if not isinstance(item, dict):
             continue
 
         if item.get("plain_text"):
             parts.append(item["plain_text"])
+        else:
+            text = item.get("text")
+            if isinstance(text, dict) and text.get("content"):
+                parts.append(text["content"])
+
+    return "".join(parts)
+
+
+def get_rich_text(prop):
+    if not isinstance(prop, dict):
+        return ""
+
+    data = prop.get("rich_text", [])
+
+    if not isinstance(data, list):
+        return ""
+
+    parts = []
+
+    for item in data:
+        if not isinstance(item, dict):
             continue
 
-        text = item.get("text")
-
-        if isinstance(text, dict) and text.get("content"):
-            parts.append(text["content"])
+        if item.get("plain_text"):
+            parts.append(item["plain_text"])
+        else:
+            text = item.get("text")
+            if isinstance(text, dict) and text.get("content"):
+                parts.append(text["content"])
 
     return "".join(parts)
 
@@ -35,81 +64,147 @@ def get_relation_ids(prop):
     if not isinstance(prop, dict):
         return []
 
-    relation = prop.get("relation")
+    relation = prop.get("relation", [])
 
     if not isinstance(relation, list):
         return []
 
-    ids = []
-
-    for item in relation:
-        if isinstance(item, dict) and item.get("id"):
-            ids.append(item["id"])
-
-    return ids
+    return [
+        item["id"]
+        for item in relation
+        if isinstance(item, dict) and item.get("id")
+    ]
 
 
-def get_page_name(page_id):
-    try:
-        page = notion.pages.retrieve(page_id=page_id)
-        properties = page.get("properties", {})
+def get_cat_name(page_id):
+    page = notion.pages.retrieve(page_id=page_id)
+    properties = page.get("properties", {})
 
-        for prop in properties.values():
-            if not isinstance(prop, dict):
-                continue
+    for prop in properties.values():
+        if isinstance(prop, dict) and prop.get("type") == "title":
+            name = get_title(prop)
+            if name:
+                return name
 
-            if prop.get("type") == "title":
-                return get_plain_text(prop.get("title", []))
-
-        return "(no title found)"
-
-    except Exception as error:
-        return "(could not retrieve name: " + str(error) + ")"
+    return "(unknown)"
 
 
 print("=" * 70)
-print("HAWKKIT EVENT RELATIONSHIP INSPECTION")
+print("TARGET LITTER EVENT INSPECTION")
 print("=" * 70)
 print("READ ONLY - NOTHING WILL BE CHANGED")
 print()
 
 print("Connecting to Notion...")
-notion.pages.retrieve(page_id=HAWKKIT_EVENT_ID)
 print("Connection successful.")
 print()
 
 # ----------------------------------------------------------------------
-# RETRIEVE EVENT
+# FIND EVENT BY ITS ACTUAL TITLE
 # ----------------------------------------------------------------------
 
-event = notion.pages.retrieve(page_id=HAWKKIT_EVENT_ID)
+print("=" * 70)
+print("SEARCHING EVENT DATABASE BY TITLE")
+print("=" * 70)
+
+response = notion.search(
+    query=TARGET_TITLE,
+    filter={
+        "property": "object",
+        "value": "page"
+    }
+)
+
+results = response.get("results", [])
+
+matches = []
+
+for page in results:
+    if not isinstance(page, dict):
+        continue
+
+    properties = page.get("properties", {})
+
+    page_title = ""
+
+    for prop in properties.values():
+        if isinstance(prop, dict) and prop.get("type") == "title":
+            page_title = get_title(prop)
+            break
+
+    if page_title == TARGET_TITLE:
+        matches.append(page)
+
+print("Exact title matches:", len(matches))
+print()
+
+if not matches:
+    print("ERROR: No exact event title match was found.")
+    print()
+    print("Search results received:")
+
+    for page in results:
+        properties = page.get("properties", {})
+        page_title = ""
+
+        for prop in properties.values():
+            if isinstance(prop, dict) and prop.get("type") == "title":
+                page_title = get_title(prop)
+                break
+
+        print("-", repr(page_title))
+        print("  ID:", page.get("id"))
+
+    raise SystemExit(1)
+
+if len(matches) > 1:
+    print("WARNING: Multiple exact matches found.")
+    print()
+
+event = matches[0]
+event_id = event["id"]
 properties = event.get("properties", {})
+
+print("TARGET EVENT FOUND")
+print()
+print("Event ID:")
+print(event_id)
+print()
+
+# ----------------------------------------------------------------------
+# EVENT TITLE
+# ----------------------------------------------------------------------
+
+event_title = ""
+
+for prop in properties.values():
+    if isinstance(prop, dict) and prop.get("type") == "title":
+        event_title = get_title(prop)
+        break
 
 print("=" * 70)
 print("EVENT")
 print("=" * 70)
-
-event_title = ""
-
-if "Event" in properties:
-    event_title = get_plain_text(properties["Event"].get("rich_text", []))
-
-if not event_title:
-    for prop in properties.values():
-        if isinstance(prop, dict) and prop.get("type") == "title":
-            event_title = get_plain_text(prop.get("title", []))
-            break
-
-print("Event:")
+print()
+print("Title:")
 print(repr(event_title))
 print()
 
-print("Event ID:")
-print(HAWKKIT_EVENT_ID)
+# ----------------------------------------------------------------------
+# EVENT TEXT
+# ----------------------------------------------------------------------
+
+if "Event" in properties:
+    event_text = get_rich_text(properties["Event"])
+else:
+    event_text = ""
+
+print("Event property:")
+print(repr(event_text))
 print()
 
 # ----------------------------------------------------------------------
-# RELATIONSHIP TYPE FORMULA
+# RELATIONSHIP TYPE
 # ----------------------------------------------------------------------
 
 print("=" * 70)
@@ -156,12 +251,80 @@ print()
 # ----------------------------------------------------------------------
 
 print("=" * 70)
-print("EVENT PARTICIPANTS")
+print("DIRECT EVENT PARTICIPANTS")
 print("=" * 70)
 
-participant_properties = [
-    "Subject Cat",
-    "Related Cats",
+subject_ids = []
+related_ids = []
+
+if "Subject Cat" in properties:
+    subject_ids = get_relation_ids(properties["Subject Cat"])
+
+if "Related Cats" in properties:
+    related_ids = get_relation_ids(properties["Related Cats"])
+
+print()
+print("Subject Cat IDs:")
+print(subject_ids)
+print()
+
+for cat_id in subject_ids:
+    print("-", get_cat_name(cat_id))
+    print("  ID:", cat_id)
+
+print()
+print("Related Cats IDs:")
+print(related_ids)
+print()
+
+for cat_id in related_ids:
+    print("-", get_cat_name(cat_id))
+    print("  ID:", cat_id)
+
+all_participant_ids = list(dict.fromkeys(subject_ids + related_ids))
+
+print()
+print("ALL DIRECT PARTICIPANT IDs:")
+print(all_participant_ids)
+print()
+
+# ----------------------------------------------------------------------
+# MAPLEPAW
+# ----------------------------------------------------------------------
+
+print("=" * 70)
+print("MAPLEPAW PARTICIPATION CHECK")
+print("=" * 70)
+
+print()
+print("Maplepaw ID:")
+print(MAPLEPAW_ID)
+print()
+
+print("Maplepaw name:")
+print(get_cat_name(MAPLEPAW_ID))
+print()
+
+print("Maplepaw in Subject Cat:")
+print(MAPLEPAW_ID in subject_ids)
+
+print("Maplepaw in Related Cats:")
+print(MAPLEPAW_ID in related_ids)
+
+print("Maplepaw is direct event participant:")
+print(MAPLEPAW_ID in all_participant_ids)
+
+print()
+
+# ----------------------------------------------------------------------
+# RELATIONSHIP-SPECIFIC FORMULA PROPERTIES
+# ----------------------------------------------------------------------
+
+print("=" * 70)
+print("RELATIONSHIP-SPECIFIC FORMULA PROPERTIES")
+print("=" * 70)
+
+relationship_properties = [
     "Sibling Cats",
     "Parent Cats",
     "Mate Cats",
@@ -170,184 +333,74 @@ participant_properties = [
     "Apprentice Cats",
 ]
 
-participant_ids_by_property = {}
+for property_name in relationship_properties:
+    print()
+    print(property_name)
+    print("-" * 70)
 
-for property_name in participant_properties:
     if property_name not in properties:
-        participant_ids_by_property[property_name] = []
-        print(property_name + ": NOT PRESENT")
-        print()
+        print("Property NOT PRESENT.")
         continue
 
     prop = properties[property_name]
 
-    if prop.get("type") != "relation":
-        participant_ids_by_property[property_name] = []
-        print(property_name + ":")
-        print("  Type:", prop.get("type"))
-        print("  Not a relation property.")
-        print()
-        continue
+    print("Property type:")
+    print(prop.get("type"))
 
-    ids = get_relation_ids(prop)
-    participant_ids_by_property[property_name] = ids
+    if prop.get("type") == "formula":
+        formula = prop.get("formula", {})
 
-    print(property_name + ":")
-    print("  IDs:", ids)
+        print("Raw formula result:")
+        print(formula)
 
-    if not ids:
-        print("  No cats.")
-    else:
+        if isinstance(formula, dict):
+            print("Formula string:")
+            print(repr(formula.get("string", "")))
+
+    elif prop.get("type") == "relation":
+        ids = get_relation_ids(prop)
+
+        print("Relation IDs:")
+        print(ids)
+
         for cat_id in ids:
-            print("  -", cat_id, "->", get_page_name(cat_id))
+            print("-", get_cat_name(cat_id))
+
+    else:
+        print("Raw property:")
+        print(prop)
+
+# ----------------------------------------------------------------------
+# PARTICIPANT SUMMARY
+# ----------------------------------------------------------------------
+
+print()
+print("=" * 70)
+print("PARTICIPANT SUMMARY")
+print("=" * 70)
+
+print()
+
+for cat_id in all_participant_ids:
+    name = get_cat_name(cat_id)
+
+    print(name)
+    print("ID:", cat_id)
+
+    if cat_id == MAPLEPAW_ID:
+        print("MAPLEPAW: DIRECT PARTICIPANT")
+    else:
+        print("Direct participant: YES")
 
     print()
 
-# ----------------------------------------------------------------------
-# ALL CATS WHO ARE DIRECTLY INVOLVED
-# ----------------------------------------------------------------------
-
-print("=" * 70)
-print("DIRECT EVENT PARTICIPANTS")
-print("=" * 70)
-
-direct_participant_ids = set()
-
-for property_name in ["Subject Cat", "Related Cats"]:
-    for cat_id in participant_ids_by_property.get(property_name, []):
-        direct_participant_ids.add(cat_id)
-
-print("Direct participant IDs:")
-print(sorted(direct_participant_ids))
-print()
-
-for cat_id in sorted(direct_participant_ids):
-    print("-", get_page_name(cat_id))
-    print("  ID:", cat_id)
+if MAPLEPAW_ID not in all_participant_ids:
+    print("IMPORTANT RESULT:")
+    print("Maplepaw is NOT a direct participant in this event.")
+    print("His existing sibling relationship must NOT make this event appear")
+    print("in his event view.")
 
 print()
-
-# ----------------------------------------------------------------------
-# RELATIONSHIP-SPECIFIC PARTICIPANTS
-# ----------------------------------------------------------------------
-
-print("=" * 70)
-print("RELATIONSHIP-SPECIFIC EVENT DATA")
-print("=" * 70)
-
-for property_name in [
-    "Sibling Cats",
-    "Parent Cats",
-    "Mate Cats",
-    "Cohort Cats",
-    "Mentor Cats",
-    "Apprentice Cats",
-]:
-    ids = participant_ids_by_property.get(property_name, [])
-
-    print(property_name + ":")
-
-    if not ids:
-        print("  EMPTY")
-    else:
-        for cat_id in ids:
-            print("  -", get_page_name(cat_id))
-            print("    ID:", cat_id)
-
-    print()
-
-# ----------------------------------------------------------------------
-# MAPLEPAW CHECK
-# ----------------------------------------------------------------------
-
-print("=" * 70)
-print("MAPLEPAW CHECK")
-print("=" * 70)
-
-print("Maplepaw:")
-print(MAPLEPAW_ID)
-print()
-
-print("Direct participant?")
-print(MAPLEPAW_ID in direct_participant_ids)
-print()
-
-for property_name in participant_properties:
-    ids = participant_ids_by_property.get(property_name, [])
-
-    if MAPLEPAW_ID in ids:
-        print("Maplepaw IS present in:", property_name)
-    else:
-        print("Maplepaw is NOT present in:", property_name)
-
-print()
-
-# ----------------------------------------------------------------------
-# RELATIONSHIP VALIDATION
-# ----------------------------------------------------------------------
-
-print("=" * 70)
-print("RELATIONSHIP DATA VALIDATION")
-print("=" * 70)
-
-for relationship_name in detected_relationships:
-    if relationship_name == "Sibling":
-        property_name = "Sibling Cats"
-    elif relationship_name == "Parent":
-        property_name = "Parent Cats"
-    elif relationship_name == "Mate":
-        property_name = "Mate Cats"
-    elif relationship_name == "Cohort":
-        property_name = "Cohort Cats"
-    elif relationship_name == "Mentor":
-        property_name = "Mentor Cats"
-    elif relationship_name == "Apprentice":
-        property_name = "Apprentice Cats"
-    else:
-        property_name = relationship_name + " Cats"
-
-    ids = participant_ids_by_property.get(property_name, [])
-
-    print(relationship_name + " -> " + property_name)
-
-    if ids:
-        print("  FOUND:", len(ids), "cats")
-        for cat_id in ids:
-            print("   -", get_page_name(cat_id), "(", cat_id, ")")
-    else:
-        print("  NO CATS STORED")
-
-    print()
-
-# ----------------------------------------------------------------------
-# IMPORTANT PARTICIPATION RULE
-# ----------------------------------------------------------------------
-
-print("=" * 70)
-print("PARTICIPATION RULE CHECK")
-print("=" * 70)
-
-print(
-    "A cat should only be included in an event's relationship property "
-    "if that cat is itself an actual participant in the event."
-)
-print()
-
-print("Maplepaw direct participation:", MAPLEPAW_ID in direct_participant_ids)
-
-if MAPLEPAW_ID not in direct_participant_ids:
-    print(
-        "RESULT: Maplepaw must NOT be treated as an event participant "
-        "even if he has sibling/parent/etc. relationships with participants."
-    )
-else:
-    print(
-        "RESULT: Maplepaw IS a direct participant and can be evaluated "
-        "for event relationship properties."
-    )
-
-print()
-
 print("=" * 70)
 print("TEST COMPLETE")
 print("NO UPDATE API CALLS WERE MADE.")
