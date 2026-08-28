@@ -2,9 +2,8 @@ import os
 from notion_client import Client
 
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
-EVENTS_DATABASE_ID = os.environ["EVENTS_DATABASE_ID"]
 
-notion = Client(auth=NOTION_TOKEN)
+EVENTS_DATA_SOURCE_ID = "cf09cd66-e972-8293-8c29-073c01330f5b"
 
 TARGET_EVENT = (
     "While out on a secret date, Cliffshock and Blackchirp find an orphaned "
@@ -13,16 +12,16 @@ TARGET_EVENT = (
     "for them. Their gentle touch and affectionate purrs are the kits’ home now."
 )
 
+notion = Client(auth=NOTION_TOKEN)
+
 
 def get_plain_text(property_value):
     if not property_value:
         return ""
 
-    prop_type = property_value.get("type")
-
-    if prop_type == "title":
+    if property_value.get("type") == "title":
         items = property_value.get("title", [])
-    elif prop_type == "rich_text":
+    elif property_value.get("type") == "rich_text":
         items = property_value.get("rich_text", [])
     else:
         return ""
@@ -46,11 +45,8 @@ def get_relation_ids(property_value):
     ]
 
 
-def get_cat_name(page):
-    properties = page.get("properties", {})
-
-    # Find the title property dynamically.
-    for prop in properties.values():
+def get_page_title(page):
+    for prop in page.get("properties", {}).values():
         if prop.get("type") == "title":
             return get_plain_text(prop)
 
@@ -63,37 +59,23 @@ def get_page(page_id):
 
 def find_event():
     response = notion.data_sources.query(
-        data_source_id=EVENTS_DATABASE_ID
+        data_source_id=EVENTS_DATA_SOURCE_ID
     )
 
-    matches = []
+    while True:
+        for page in response.get("results", []):
+            if get_page_title(page) == TARGET_EVENT:
+                return page
 
-    for page in response.get("results", []):
-        name = get_cat_name(page)
+        if not response.get("has_more"):
+            break
 
-        if name == TARGET_EVENT:
-            matches.append(page)
-
-    while response.get("has_more"):
         response = notion.data_sources.query(
-            data_source_id=EVENTS_DATABASE_ID,
+            data_source_id=EVENTS_DATA_SOURCE_ID,
             start_cursor=response["next_cursor"]
         )
 
-        for page in response.get("results", []):
-            name = get_cat_name(page)
-
-            if name == TARGET_EVENT:
-                matches.append(page)
-
-    if not matches:
-        return None
-
-    if len(matches) > 1:
-        print("WARNING: Multiple events matched the exact title.")
-        print("Number of matches:", len(matches))
-
-    return matches[0]
+    return None
 
 
 print("=" * 70)
@@ -103,32 +85,25 @@ print("READ ONLY - NOTHING WILL BE CHANGED")
 print()
 
 print("Connecting to Notion...")
-print()
-
 event = find_event()
 
 if event is None:
+    print()
     print("ERROR: Target event was not found.")
     print()
-    print("Target title:")
+    print("Target event:")
     print(TARGET_EVENT)
     raise SystemExit(1)
 
 event_id = event["id"]
 properties = event["properties"]
 
-print("Target event found.")
 print()
 print("Event:")
-print(get_cat_name(event))
+print(get_page_title(event))
 print()
 print("ID:")
 print(event_id)
-
-print()
-print("=" * 70)
-print("EVENT PARTICIPANTS")
-print("=" * 70)
 
 subject_ids = get_relation_ids(
     properties.get("Subject Cat")
@@ -140,36 +115,28 @@ related_ids = get_relation_ids(
 
 participant_ids = []
 
-for cat_id in subject_ids + related_ids:
+for cat_id in subject_ids:
     if cat_id not in participant_ids:
         participant_ids.append(cat_id)
 
-print()
-print("Subject Cat IDs:")
-print(subject_ids)
-
-print()
-print("Related Cats IDs:")
-print(related_ids)
-
-print()
-print("All participant IDs:")
-print(participant_ids)
-
-print()
-print("Number of participants:")
-print(len(participant_ids))
-
-print()
-print("=" * 70)
-print("PARTICIPANT NAMES")
-print("=" * 70)
+for cat_id in related_ids:
+    if cat_id not in participant_ids:
+        participant_ids.append(cat_id)
 
 participants = {}
 
-for cat_id in participant_ids:
+print()
+print("=" * 70)
+print("EVENT PARTICIPANTS")
+print("=" * 70)
+
+print()
+print("SUBJECT CATS")
+print("-" * 70)
+
+for cat_id in subject_ids:
     cat_page = get_page(cat_id)
-    cat_name = get_cat_name(cat_page)
+    cat_name = get_page_title(cat_page)
 
     participants[cat_id] = {
         "name": cat_name,
@@ -179,6 +146,26 @@ for cat_id in participant_ids:
     print(cat_name)
     print("ID:", cat_id)
     print()
+
+print("RELATED CATS")
+print("-" * 70)
+
+for cat_id in related_ids:
+    cat_page = get_page(cat_id)
+    cat_name = get_page_title(cat_page)
+
+    if cat_id not in participants:
+        participants[cat_id] = {
+            "name": cat_name,
+            "page": cat_page
+        }
+
+    print(cat_name)
+    print("ID:", cat_id)
+    print()
+
+print()
+print("TOTAL PARTICIPANTS:", len(participant_ids))
 
 print()
 print("=" * 70)
@@ -190,14 +177,16 @@ maplepaw_id = None
 for cat_id, data in participants.items():
     if data["name"] == "Maplepaw":
         maplepaw_id = cat_id
+        break
 
 if maplepaw_id is None:
     print()
     print("Maplepaw is NOT an Event participant.")
-    print("This is the expected result.")
+    print("EXPECTED: YES")
 else:
     print()
-    print("WARNING: Maplepaw IS an Event participant.")
+    print("Maplepaw IS an Event participant.")
+    print("WARNING: This is not the expected result.")
     print("Maplepaw ID:", maplepaw_id)
 
 print()
@@ -207,31 +196,33 @@ print("=" * 70)
 
 print()
 print(
-    "A cat may qualify for Sibling Cats only when BOTH conditions are true:"
+    "A cat can be included in the Event's Sibling Cats property only if:"
 )
-print()
-print("1. The cat participates in this Event.")
-print("2. Another participating cat is actually in that cat's Sibling Cats relation.")
-print()
+print(
+    "1. The cat participates in this Event."
+)
+print(
+    "2. Another participating cat is in that cat's Sibling Cats relation."
+)
 
-qualifying_pairs = []
+qualifying_ids = []
 
-for cat_id, data in participants.items():
+for cat_id in participant_ids:
+    data = participants[cat_id]
     cat_name = data["name"]
     cat_page = data["page"]
 
-    cat_properties = cat_page.get("properties", {})
+    sibling_ids = get_relation_ids(
+        cat_page.get("properties", {}).get("Sibling Cats")
+    )
 
-    sibling_property = cat_properties.get("Sibling Cats")
-
-    sibling_ids = get_relation_ids(sibling_property)
-
+    print()
     print("-" * 70)
     print(cat_name)
     print("ID:", cat_id)
     print("Existing Sibling IDs:", sibling_ids)
 
-    found_pair = False
+    qualifying_partners = []
 
     for other_id in participant_ids:
         if other_id == cat_id:
@@ -240,48 +231,40 @@ for cat_id, data in participants.items():
         if other_id in sibling_ids:
             other_name = participants[other_id]["name"]
 
-            print()
-            print("QUALIFYING PAIR:")
-            print(cat_name, "<->", other_name)
+            qualifying_partners.append(other_name)
 
-            qualifying_pairs.append(
-                (cat_id, other_id)
-            )
+            if cat_id not in qualifying_ids:
+                qualifying_ids.append(cat_id)
 
-            found_pair = True
-
-    if found_pair:
+    if qualifying_partners:
         print()
-        print("RESULT:", cat_name, "qualifies for Sibling Cats.")
+        print("QUALIFIES BECAUSE PARTICIPATING SIBLING(S):")
+
+        for partner in qualifying_partners:
+            print(" -", partner)
+
+        print()
+        print("RESULT: QUALIFIES")
     else:
         print()
-        print("RESULT:", cat_name, "does NOT qualify for Sibling Cats.")
+        print("RESULT: Does NOT qualify")
 
 print()
 print("=" * 70)
 print("PROPOSED EVENT PROPERTY")
 print("=" * 70)
 
-sibling_event_ids = []
-
-for first_id, second_id in qualifying_pairs:
-    if first_id not in sibling_event_ids:
-        sibling_event_ids.append(first_id)
-
-    if second_id not in sibling_event_ids:
-        sibling_event_ids.append(second_id)
-
 print()
 print("Sibling Cats would contain:")
 
-for cat_id in sibling_event_ids:
+for cat_id in qualifying_ids:
     print(
         " -",
         participants[cat_id]["name"],
         "(" + cat_id + ")"
     )
 
-if not sibling_event_ids:
+if not qualifying_ids:
     print(" - None")
 
 print()
@@ -290,53 +273,47 @@ print("MAPLEPAW FALSE-POSITIVE TEST")
 print("=" * 70)
 
 print()
-print(
-    "Maplepaw must NOT appear in Sibling Cats unless Maplepaw is an "
-    "actual Event participant."
-)
 
 if maplepaw_id is None:
-    if maplepaw_id in sibling_event_ids:
-        print()
+    if maplepaw_id in qualifying_ids:
         print("RESULT: FAILURE")
         print(
-            "Maplepaw was included in Sibling Cats even though "
-            "Maplepaw is not participating in the Event."
+            "Maplepaw was incorrectly included despite not participating."
         )
     else:
-        print()
         print("RESULT: SUCCESS")
         print(
-            "Maplepaw is not an Event participant and is not included "
-            "in Sibling Cats."
+            "Maplepaw is not a participant and is not included "
+            "in the Event's Sibling Cats."
         )
 else:
-    print()
+    print("RESULT: WARNING")
     print(
-        "Maplepaw is participating, so the false-positive exclusion "
-        "test does not apply."
+        "Maplepaw is actually participating in this Event, so "
+        "the exclusion test cannot be used."
     )
 
 print()
 print("=" * 70)
-print("IMPORTANT RELATIONSHIP RULE")
+print("FINAL LOGIC CHECK")
 print("=" * 70)
-
 print()
 print(
-    "This test intentionally does NOT traverse relationships outward."
+    "This test does NOT follow sibling relationships outward."
+)
+print(
+    "A non-participating cat cannot be pulled into an Event merely "
+    "because it is related to a participating cat."
 )
 print()
 print(
-    "Being a sibling of a participating cat is not sufficient."
+    "For Maplepaw, the expected result is:"
 )
 print(
-    "A cat must itself participate in the Event."
+    "  Participating in Event: NO"
 )
-print()
 print(
-    "Therefore, Maplepaw's relationship to the five participating kits "
-    "must not cause this event to appear in Maplepaw's Sibling events."
+    "  Included in Event Sibling Cats: NO"
 )
 
 print()
