@@ -1,284 +1,333 @@
+```python
 import os
 from notion_client import Client
 
-
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
+EVENT_ID = "3c99cd66-e972-80fc-a803-de69fe8bd6de"
 
-TEST_EVENT_ID = "3c99cd66-e972-80fc-a803-de69fe8bd6de"
-
-
-def get_plain_text(property_data):
-    if not property_data:
-        return ""
-
-    items = (
-        property_data.get("title")
-        or property_data.get("rich_text")
-        or []
-    )
-
-    return "".join(
-        item.get("plain_text", "")
-        for item in items
-    )
+notion = Client(auth=NOTION_TOKEN)
 
 
-def get_relation_ids(property_data):
-    if not property_data:
+def get_page(page_id):
+    return notion.pages.retrieve(page_id=page_id)
+
+
+def get_title(page):
+    properties = page.get("properties", {})
+
+    for prop in properties.values():
+        if prop.get("type") == "title":
+            title_data = prop.get("title", [])
+            if title_data:
+                return "".join(
+                    item.get("plain_text", "")
+                    for item in title_data
+                )
+
+    return "(Unnamed)"
+
+
+def get_relation_ids(page, property_name):
+    prop = page.get("properties", {}).get(property_name)
+
+    if not prop:
+        return []
+
+    if prop.get("type") != "relation":
         return []
 
     return [
-        item["id"]
-        for item in property_data.get("relation", [])
+        relation["id"]
+        for relation in prop.get("relation", [])
     ]
 
 
-def get_cat_name(notion, cat_id):
-    page = notion.pages.retrieve(page_id=cat_id)
+def get_event_relation_type(event):
+    prop = event["properties"].get("Relationship Type")
 
-    for property_data in page.get("properties", {}).values():
-        if property_data.get("type") == "title":
-            return get_plain_text(property_data)
-
-    return "(Unnamed cat)"
-
-
-def get_relationship_formula(event):
-    property_data = event["properties"].get("Relationship Type")
-
-    if not property_data:
+    if not prop:
         return ""
 
-    formula = property_data.get("formula", {})
+    formula = prop.get("formula", {})
+
+    if formula.get("type") != "string":
+        return ""
 
     return formula.get("string") or ""
 
 
-def parse_relationships(formula_value):
-    if not formula_value:
+def parse_relationships(value):
+    if not value:
         return []
 
     return [
         relationship.strip()
-        for relationship in formula_value.split("·")
+        for relationship in value.split("·")
         if relationship.strip()
     ]
 
 
+def get_event_participants(event):
+    subject_ids = get_relation_ids(event, "Subject Cat")
+    related_ids = get_relation_ids(event, "Related Cats")
+
+    all_ids = []
+
+    for cat_id in subject_ids + related_ids:
+        if cat_id not in all_ids:
+            all_ids.append(cat_id)
+
+    return subject_ids, related_ids, all_ids
+
+
+def get_relationship_ids_for_cat(cat_page, relationship):
+    property_map = {
+        "Cohort": "Cohort",
+        "Mate": "Mate",
+        "Mentor": "Mentor Cats",
+        "Apprentice": "Apprentice Cats",
+    }
+
+    property_name = property_map.get(relationship)
+
+    if not property_name:
+        return []
+
+    return get_relation_ids(cat_page, property_name)
+
+
 def main():
-    notion = Client(auth=NOTION_TOKEN)
-
-    print("Connecting to Notion...")
-    notion.users.me()
-    print("Connection successful.")
-    print()
-
     print("=" * 70)
-    print("COHORT WRITE PAYLOAD TEST")
+    print("EVENT RELATIONSHIP INDEXING TEST")
     print("=" * 70)
     print("READ ONLY - NOTHING WILL BE CHANGED")
     print()
 
-    # ---------------------------------------------------------------
-    # Retrieve the known test event
-    # ---------------------------------------------------------------
+    event = get_page(EVENT_ID)
 
-    event = notion.pages.retrieve(
-        page_id=TEST_EVENT_ID
-    )
+    event_title = get_title(event)
 
-    properties = event.get("properties", {})
-
-    event_text = get_plain_text(
-        properties.get("Event")
-    )
-
-    print("Event:")
-    print(event_text)
+    print("EVENT")
+    print("-" * 70)
+    print(event_title)
+    print()
+    print("Event ID:")
+    print(EVENT_ID)
     print()
 
-    # ---------------------------------------------------------------
-    # Read Relationship Type
-    # ---------------------------------------------------------------
-
-    formula_value = get_relationship_formula(event)
+    relationship_value = get_event_relation_type(event)
+    relationships = parse_relationships(relationship_value)
 
     print("Relationship Type:")
-    print(repr(formula_value))
+    print(repr(relationship_value))
     print()
-
-    relationships = parse_relationships(formula_value)
-
     print("Detected relationships:")
     print(relationships)
     print()
 
-    if "Cohort" not in relationships:
-        print("ERROR: Cohort relationship was not detected.")
-        return
+    subject_ids, related_ids, participant_ids = get_event_participants(event)
 
-    # ---------------------------------------------------------------
-    # Get Subject Cats
-    # ---------------------------------------------------------------
+    print("=" * 70)
+    print("EVENT PARTICIPANTS")
+    print("=" * 70)
 
-    subject_ids = get_relation_ids(
-        properties.get("Subject Cat")
-    )
-
-    print("-" * 70)
+    print()
     print("SUBJECT CATS")
     print("-" * 70)
 
-    subject_cats = []
+    subject_pages = {}
 
     for cat_id in subject_ids:
-        name = get_cat_name(notion, cat_id)
-
-        subject_cats.append({
-            "id": cat_id,
-            "name": name,
-        })
+        cat = get_page(cat_id)
+        name = get_title(cat)
+        subject_pages[cat_id] = cat
 
         print(f"{name}")
         print(f"ID: {cat_id}")
         print()
 
-    # ---------------------------------------------------------------
-    # Get Related Cats
-    # ---------------------------------------------------------------
-
-    related_ids = get_relation_ids(
-        properties.get("Related Cats")
-    )
-
-    print("-" * 70)
     print("RELATED CATS")
     print("-" * 70)
 
-    related_cats = []
+    related_pages = {}
 
     for cat_id in related_ids:
-        name = get_cat_name(notion, cat_id)
-
-        related_cats.append({
-            "id": cat_id,
-            "name": name,
-        })
+        cat = get_page(cat_id)
+        name = get_title(cat)
+        related_pages[cat_id] = cat
 
         print(f"{name}")
         print(f"ID: {cat_id}")
         print()
 
-    # ---------------------------------------------------------------
-    # Inspect existing Cohort relations
-    # ---------------------------------------------------------------
+    print("=" * 70)
+    print("ALL PARTICIPANTS")
+    print("=" * 70)
 
-    print("-" * 70)
-    print("EXISTING COHORT RELATIONS")
-    print("-" * 70)
+    participant_pages = {}
 
-    cohort_data = {}
+    for cat_id in participant_ids:
+        if cat_id in subject_pages:
+            cat = subject_pages[cat_id]
+        elif cat_id in related_pages:
+            cat = related_pages[cat_id]
+        else:
+            cat = get_page(cat_id)
 
-    for subject in subject_cats:
-        page = notion.pages.retrieve(
-            page_id=subject["id"]
-        )
+        participant_pages[cat_id] = cat
 
-        cat_properties = page.get("properties", {})
+        print(f"{get_title(cat)}")
+        print(f"ID: {cat_id}")
+        print()
 
-        cohort_property = cat_properties.get("Cohort")
+    print("=" * 70)
+    print("RELATIONSHIP ANALYSIS")
+    print("=" * 70)
 
-        if not cohort_property:
-            print(f"{subject['name']}: Cohort property NOT FOUND")
-            cohort_data[subject["id"]] = []
+    proposed_event_properties = {
+        "Cohort": [],
+        "Mate": [],
+        "Mentor": [],
+        "Apprentice": [],
+    }
+
+    for relationship in relationships:
+        if relationship not in proposed_event_properties:
+            print()
+            print(f"Skipping unsupported relationship: {relationship}")
             continue
 
-        if cohort_property.get("type") != "relation":
-            print(
-                f"{subject['name']}: Cohort property has unexpected "
-                f"type: {cohort_property.get('type')}"
+        print()
+        print("-" * 70)
+        print(f"{relationship.upper()} RELATIONSHIP")
+        print("-" * 70)
+
+        print()
+        print("Checking each participant's existing relationship...")
+
+        for cat_id in participant_ids:
+            cat = participant_pages[cat_id]
+            cat_name = get_title(cat)
+
+            relation_ids = get_relationship_ids_for_cat(
+                cat,
+                relationship
             )
-            cohort_data[subject["id"]] = []
-            continue
 
-        existing_ids = get_relation_ids(cohort_property)
+            relation_names = []
 
-        cohort_data[subject["id"]] = existing_ids
+            for relation_id in relation_ids:
+                try:
+                    related_cat = get_page(relation_id)
+                    relation_names.append(
+                        (relation_id, get_title(related_cat))
+                    )
+                except Exception:
+                    relation_names.append(
+                        (relation_id, "(Could not retrieve)")
+                    )
 
-        print(f"{subject['name']}:")
-        print(f"  Existing Cohort IDs: {existing_ids}")
+            print()
+            print(f"{cat_name}:")
+            print(f"  Existing {relationship} IDs: {relation_ids}")
 
-        if existing_ids:
-            for existing_id in existing_ids:
-                existing_name = get_cat_name(
-                    notion,
-                    existing_id
-                )
+            if relation_names:
+                for relation_id, relation_name in relation_names:
+                    print(
+                        f"  - {relation_name} ({relation_id})"
+                    )
+            else:
+                print(f"  - No existing {relationship} cats.")
+
+        print()
+        print("PARTICIPANT PAIRS THAT QUALIFY")
+        print("-" * 70)
+
+        qualifying_pairs = []
+        qualifying_cats = []
+
+        for cat_id in participant_ids:
+            cat = participant_pages[cat_id]
+            cat_name = get_title(cat)
+
+            relation_ids = get_relationship_ids_for_cat(
+                cat,
+                relationship
+            )
+
+            for other_id in participant_ids:
+                if other_id == cat_id:
+                    continue
+
+                if other_id in relation_ids:
+                    other_cat = participant_pages[other_id]
+                    other_name = get_title(other_cat)
+
+                    qualifying_pairs.append(
+                        (cat_id, cat_name, other_id, other_name)
+                    )
+
+                    if cat_id not in qualifying_cats:
+                        qualifying_cats.append(cat_id)
+
+        if qualifying_pairs:
+            for (
+                cat_id,
+                cat_name,
+                other_id,
+                other_name
+            ) in qualifying_pairs:
                 print(
-                    f"  - {existing_name} "
-                    f"({existing_id})"
+                    f"{cat_name} <-> {other_name}"
                 )
         else:
-            print("  - No existing Cohort cats.")
+            print("No qualifying participant pairs found.")
 
         print()
+        print("CATS THAT WOULD BE ADDED TO EVENT PROPERTY")
+        print("-" * 70)
 
-    # ---------------------------------------------------------------
-    # Construct the hypothetical update payload
-    # ---------------------------------------------------------------
+        if qualifying_cats:
+            for cat_id in qualifying_cats:
+                cat_name = get_title(participant_pages[cat_id])
 
-    print("-" * 70)
-    print("HYPOTHETICAL UPDATE PAYLOADS")
-    print("-" * 70)
-
-    print("These payloads WOULD be sent to Notion.")
-    print("They are NOT being sent.")
-    print()
-
-    for subject in subject_cats:
-        existing_ids = cohort_data.get(
-            subject["id"],
-            []
-        )
-
-        print(f"{subject['name']}")
-        print()
-
-        for related in related_cats:
-            related_id = related["id"]
-
-            if related_id in existing_ids:
                 print(
-                    f"  {related['name']} is already in "
-                    f"{subject['name']}'s Cohort."
+                    f"Would add {cat_name} to the Event's "
+                    f"{relationship} Cats property."
                 )
-                continue
 
-            updated_ids = existing_ids + [related_id]
-
-            payload = {
-                "properties": {
-                    "Cohort": {
-                        "relation": [
-                            {"id": cat_id}
-                            for cat_id in updated_ids
-                        ]
-                    }
-                }
-            }
-
+                proposed_event_properties[
+                    relationship
+                ].append(cat_id)
+        else:
             print(
-                f"  Would add {related['name']} "
-                f"to {subject['name']}'s Cohort."
+                f"No cats would be added to the Event's "
+                f"{relationship} Cats property."
             )
 
-            print("  Payload:")
-            print(f"  {payload}")
-            print()
+    print()
+    print("=" * 70)
+    print("FINAL HYPOTHETICAL EVENT PROPERTIES")
+    print("=" * 70)
+    print()
+    print("These are NOT being sent to Notion.")
+    print()
 
-    # ---------------------------------------------------------------
-    # Final safety check
-    # ---------------------------------------------------------------
+    for relationship, cat_ids in proposed_event_properties.items():
+        print(f"{relationship} Cats:")
+
+        if not cat_ids:
+            print("  []")
+            print()
+            continue
+
+        for cat_id in cat_ids:
+            print(
+                f"  - {get_title(participant_pages[cat_id])}"
+                f" ({cat_id})"
+            )
+
+        print()
 
     print("=" * 70)
     print("TEST COMPLETE")
@@ -289,3 +338,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
