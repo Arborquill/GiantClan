@@ -684,10 +684,10 @@ def build_event_relationships(event_id):
 #
 # This is temporary.
 #
-# When we connect the webhook, this section will be replaced
-# by the web endpoint.
+# For local testing, the Event ID is still supplied here.
 #
-# For now, change ONLY TEST_EVENT_ID when testing.
+# Later, the webhook will call build_event_relationships()
+# directly and this section will no longer be needed.
 #
 # ============================================================
 
