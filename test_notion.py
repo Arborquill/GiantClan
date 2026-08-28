@@ -1,3 +1,4 @@
+```python
 import os
 from notion_client import Client
 
@@ -9,13 +10,11 @@ EVENTS_DATA_SOURCE_ID = "3b79cd66-e972-8014-9954-000b6da417a8"
 CATS_DATABASE_ID = "9849cd66-e972-8390-b142-01cdd6b8b3a6"
 CATS_DATA_SOURCE_ID = "cf09cd66-e972-8293-8c29-073c01330f5b"
 
-# ------------------------------------------------------------
-# TARGET EVENT
-# ------------------------------------------------------------
-
-EVENT_ID = "3c59cd66-e972-807b-978d-ce04f7968c42"
-
 notion = Client(auth=NOTION_TOKEN)
+
+TARGET_EVENT_TITLE = (
+    "Cliffshock and Larchstipe get sore pawpads after failing to find lungwort"
+)
 
 RELATIONSHIP_PROPERTIES = {
     "Kit": "Kits",
@@ -67,7 +66,9 @@ def get_title(page):
     properties = page.get("properties", {})
 
     for property_data in properties.values():
+
         if property_data.get("type") == "title":
+
             title_items = property_data.get("title", [])
 
             return "".join(
@@ -133,27 +134,60 @@ print()
 # RETRIEVE DATA
 # ------------------------------------------------------------
 
+print("Retrieving Event pages...")
+events = get_database_pages(EVENTS_DATA_SOURCE_ID)
+
 print("Retrieving All Cats pages...")
 cats = get_database_pages(CATS_DATA_SOURCE_ID)
 
-print("Retrieving target Event...")
-
-event = notion.pages.retrieve(
-    page_id=EVENT_ID
-)
-
 print("Pages retrieved.")
+
+# ------------------------------------------------------------
+# FIND TARGET EVENT
+# ------------------------------------------------------------
+
+event = None
+
+for page in events:
+
+    title = get_title(page)
+
+    if title == TARGET_EVENT_TITLE:
+        event = page
+        break
+
+if event is None:
+
+    print("ERROR: Target event was not found.")
+    print()
+    print("Events containing 'Cliffshock' and 'Larchstipe':")
+
+    for page in events:
+
+        title = get_title(page)
+
+        if "Cliffshock" in title and "Larchstipe" in title:
+
+            print()
+            print("Title:")
+            print(title)
+
+            print("ID:")
+            print(page["id"])
+
+    raise SystemExit(1)
+
+event_id = event["id"]
 
 # ------------------------------------------------------------
 # EVENT
 # ------------------------------------------------------------
 
-event_id = event["id"]
-
 print()
 print("=" * 70)
 print("EVENT")
 print("=" * 70)
+
 print(get_title(event))
 
 print()
@@ -164,12 +198,20 @@ print(event_id)
 # GET DIRECT PARTICIPANTS
 # ------------------------------------------------------------
 
-subject_ids = get_relation_ids(event, "Subject Cat")
-related_ids = get_relation_ids(event, "Related Cats")
+subject_ids = get_relation_ids(
+    event,
+    "Subject Cat"
+)
+
+related_ids = get_relation_ids(
+    event,
+    "Related Cats"
+)
 
 participant_ids = []
 
 for cat_id in subject_ids + related_ids:
+
     if cat_id not in participant_ids:
         participant_ids.append(cat_id)
 
@@ -177,6 +219,7 @@ print()
 print("=" * 70)
 print("DIRECT PARTICIPANTS")
 print("=" * 70)
+
 print(participant_ids)
 
 cat_by_id = {
@@ -192,6 +235,7 @@ for cat_id in participant_ids:
 
     if page:
         participant_names[cat_id] = get_title(page)
+
     else:
         participant_names[cat_id] = "[CAT NOT FOUND]"
 
@@ -222,6 +266,7 @@ print()
 print("=" * 70)
 print("RELATIONSHIP TYPES")
 print("=" * 70)
+
 print(relationship_types)
 
 # ------------------------------------------------------------
@@ -269,7 +314,9 @@ for relationship_type in relationship_types:
 
     for participant_id in participant_ids:
 
-        participant = cat_by_id.get(participant_id)
+        participant = cat_by_id.get(
+            participant_id
+        )
 
         if not participant:
             continue
@@ -282,7 +329,10 @@ for relationship_type in relationship_types:
         for related_cat_id in related_cat_ids:
 
             if related_cat_id in participant_set:
-                matching_ids.add(related_cat_id)
+
+                matching_ids.add(
+                    related_cat_id
+                )
 
     ordered_ids = [
         cat_id
@@ -333,7 +383,7 @@ for relationship_type in relationship_types:
 
     ids = results.get(
         relationship_type,
-        [],
+        []
     )
 
     print()
@@ -389,6 +439,7 @@ if maplepaw_id:
             found = True
 
     if not found:
+
         print("NO")
 
 # ------------------------------------------------------------
@@ -465,7 +516,10 @@ for relationship_type in relationship_types:
 
     actual_ids = [
         item["id"]
-        for item in property_data.get("relation", [])
+        for item in property_data.get(
+            "relation",
+            []
+        )
         if item.get("id")
     ]
 
@@ -513,3 +567,4 @@ else:
 print()
 print("No All Cats pages were modified.")
 print("=" * 70)
+```
