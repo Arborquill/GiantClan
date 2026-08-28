@@ -7,7 +7,7 @@ EVENT_ID = "3c89cd66-e972-80f9-8036-c2858a8a140c"
 notion = Client(auth=NOTION_TOKEN)
 
 print("=" * 70)
-print("RELATIONSHIP EVENT TEST")
+print("RELATION PROPERTY REPLACEMENT TEST")
 print("=" * 70)
 print("READ ONLY - NOTHING WILL BE CHANGED")
 print()
@@ -19,102 +19,216 @@ print()
 event = notion.pages.retrieve(page_id=EVENT_ID)
 properties = event["properties"]
 
-event_title = properties["Event"]["title"][0]["plain_text"]
-
+print("=" * 70)
 print("EVENT")
-print("-" * 70)
+print("=" * 70)
+
+event_title = properties["Event"]["title"][0]["plain_text"]
 print(event_title)
 print()
 
-relationship_type = properties["Relationship Type"]["formula"]["string"]
+relationship_string = properties["Relationship Type"]["formula"]["string"]
 
-print("RELATIONSHIP TYPE")
+print("=" * 70)
+print("RELATIONSHIP TYPES TO PROCESS")
+print("=" * 70)
+print(repr(relationship_string))
+print()
+
+relationship_names = relationship_string.split(" · ")
+print(relationship_names)
+print()
+
+subject_ids = [x["id"] for x in properties["Subject Cat"]["relation"]]
+related_ids = [x["id"] for x in properties["Related Cats"]["relation"]]
+
+participant_ids = list(dict.fromkeys(subject_ids + related_ids))
+
+print("=" * 70)
+print("DIRECT EVENT PARTICIPANTS")
+print("=" * 70)
+print()
+
+participant_names = {}
+
+for cat_id in participant_ids:
+cat_page = notion.pages.retrieve(page_id=cat_id)
+cat_properties = cat_page["properties"]
+name_data = cat_properties["Name"]["title"]
+cat_name = name_data[0]["plain_text"]
+participant_names[cat_id] = cat_name
+print(cat_name)
+print(cat_id)
+print()
+
+print("=" * 70)
+print("RELATIONSHIP ANALYSIS")
+print("=" * 70)
+print()
+print("Only relationships between direct Event participants count.")
+print()
+
+results = {}
+
+for relationship_name in relationship_names:
+results[relationship_name] = []
+
+for cat_id in participant_ids:
+cat_page = notion.pages.retrieve(page_id=cat_id)
+cat_properties = cat_page["properties"]
+cat_name = participant_names[cat_id]
+
+```
 print("-" * 70)
-print(repr(relationship_type))
-print()
-
-relationships = relationship_type.split(" · ")
-
-print("DETECTED RELATIONSHIPS")
+print(cat_name)
 print("-" * 70)
-print(relationships)
-print()
 
-subject_ids = [item["id"] for item in properties["Subject Cat"]["relation"]]
-related_ids = [item["id"] for item in properties["Related Cats"]["relation"]]
+for relationship_name in relationship_names:
+    property_name = relationship_name
 
-participant_ids = subject_ids + related_ids
+    if relationship_name == "Kit":
+        property_name = "Kits"
 
-print("DIRECT PARTICIPANTS")
-print("-" * 70)
-print("Subject:")
-print(subject_ids)
-print()
-print("Related:")
-print(related_ids)
-print()
-print("All participants:")
-print(participant_ids)
+    if relationship_name == "Parent":
+        property_name = "Parents"
+
+    if relationship_name == "Sibling":
+        property_name = "Siblings"
+
+    if relationship_name == "Cohort":
+        property_name = "Cohort"
+
+    if relationship_name == "Mate":
+        property_name = "Mate"
+
+    if relationship_name == "Mentor":
+        property_name = "Mentor(s)"
+
+    if relationship_name == "Apprentice":
+        property_name = "Apprentices"
+
+    relation_data = cat_properties.get(property_name)
+
+    if relation_data is None:
+        print(relationship_name + ": property not found")
+        continue
+
+    if relation_data["type"] != "relation":
+        print(relationship_name + ": not a relation property")
+        continue
+
+    relation_ids = [x["id"] for x in relation_data["relation"]]
+
+    matching_ids = []
+
+    for other_id in relation_ids:
+        if other_id in participant_ids:
+            matching_ids.append(other_id)
+
+    if len(matching_ids) == 0:
+        continue
+
+    print(relationship_name + ":")
+
+    for other_id in matching_ids:
+        other_name = participant_names[other_id]
+
+        print("  " + cat_name + " <-> " + other_name)
+
+        if cat_id not in results[relationship_name]:
+            results[relationship_name].append(cat_id)
+
+        if other_id not in results[relationship_name]:
+            results[relationship_name].append(other_id)
+```
+
 print()
 
 print("=" * 70)
-print("RELATIONSHIP PROPERTY TYPES")
+print("PROPOSED NEW EVENT RELATIONS")
 print("=" * 70)
 print()
 
-print("Kit Cats:", properties["Kit Cats"]["type"])
-print("Parent Cats:", properties["Parent Cats"]["type"])
-print("Sibling Cats:", properties["Sibling Cats"]["type"])
-print("Cohort Cats:", properties["Cohort Cats"]["type"])
-print("Mate Cats:", properties["Mate Cats"]["type"])
-print("Mentor Cats:", properties["Mentor Cats"]["type"])
-print("Apprentice Cats:", properties["Apprentice Cats"]["type"])
+event_property_names = {
+"Kit": "Kit Cats",
+"Parent": "Parent Cats",
+"Sibling": "Sibling Cats",
+"Cohort": "Cohort Cats",
+"Mate": "Mate Cats",
+"Mentor": "Mentor Cats",
+"Apprentice": "Apprentice Cats"
+}
+
+for relationship_name in relationship_names:
+event_property_name = event_property_names[relationship_name]
+result_ids = results[relationship_name]
+
+```
+print(event_property_name + ":")
+
+if len(result_ids) == 0:
+    print("  EMPTY")
+    print()
+    continue
+
+for result_id in result_ids:
+    print("  - " + participant_names[result_id])
+
 print()
+```
 
 print("=" * 70)
-print("CURRENT FORMULA RELATIONSHIP VALUES")
+print("HYPOTHETICAL PAYLOADS")
 print("=" * 70)
 print()
-
-print("Kit Cats formula:")
-print(properties["Kit Cats"]["formula"])
+print("These would be sent to the Event page.")
+print("They are NOT being sent.")
 print()
 
-print("Parent Cats formula:")
-print(properties["Parent Cats"]["formula"])
-print()
+for relationship_name in relationship_names:
+event_property_name = event_property_names[relationship_name]
+result_ids = results[relationship_name]
 
-print("Sibling Cats formula:")
-print(properties["Sibling Cats"]["formula"])
-print()
+```
+if len(result_ids) == 0:
+    print(event_property_name + ": EMPTY")
+    print()
+    continue
 
-print("Cohort Cats formula:")
-print(properties["Cohort Cats"]["formula"])
-print()
+payload = {
+    "properties": {
+        event_property_name: {
+            "relation": [{"id": x} for x in result_ids]
+        }
+    }
+}
 
-print("Mate Cats formula:")
-print(properties["Mate Cats"]["formula"])
+print(event_property_name)
+print(payload)
 print()
-
-print("Mentor Cats formula:")
-print(properties["Mentor Cats"]["formula"])
-print()
-
-print("Apprentice Cats formula:")
-print(properties["Apprentice Cats"]["formula"])
-print()
+```
 
 print("=" * 70)
 print("MAPLEPAW SAFETY CHECK")
 print("=" * 70)
 print()
 
-print("Maplepaw ID:")
-print("3c09cd66-e972-80f9-9355-c0df84dd19ec")
-print()
+maplepaw_id = "3c09cd66-e972-80f9-9355-c0df84dd19ec"
 
 print("Maplepaw is a direct participant:")
-print("3c09cd66-e972-80f9-9355-c0df84dd19ec" in participant_ids)
+print(maplepaw_id in participant_ids)
+print()
+
+maplepaw_found = False
+
+for relationship_name in relationship_names:
+if maplepaw_id in results[relationship_name]:
+maplepaw_found = True
+print("ERROR: Maplepaw was added to " + relationship_name)
+
+if maplepaw_found is False:
+print("PASS: Maplepaw was not added to any Event relationship.")
+
 print()
 
 print("=" * 70)
