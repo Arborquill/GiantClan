@@ -1,3 +1,4 @@
+```python
 import os
 from notion_client import Client
 
@@ -125,9 +126,8 @@ def parse_relationship_types(value):
 
 
 print("=" * 70)
-print("EVENT RELATIONSHIP BUILD TEST")
+print("EVENT RELATIONSHIP BUILD")
 print("=" * 70)
-print("READ ONLY - NOTHING WILL BE CHANGED")
 print()
 
 print("Retrieving Event pages...")
@@ -149,11 +149,16 @@ if event is None:
     print("ERROR: Target event was not found.")
     raise SystemExit(1)
 
+event_id = event["id"]
+
 print()
 print("=" * 70)
 print("EVENT")
 print("=" * 70)
 print(get_title(event))
+print()
+print("Event ID:")
+print(event_id)
 
 subject_ids = get_relation_ids(event, "Subject Cat")
 related_ids = get_relation_ids(event, "Related Cats")
@@ -215,7 +220,7 @@ results = {}
 
 print()
 print("=" * 70)
-print("PROPOSED EVENT RELATIONS")
+print("CALCULATED EVENT RELATIONS")
 print("=" * 70)
 
 for relationship_type in relationship_types:
@@ -267,7 +272,7 @@ for relationship_type in relationship_types:
 
     results[relationship_type] = ordered_ids
 
-    print("Would contain:")
+    print("Will contain:")
 
     if not ordered_ids:
         print("[NONE]")
@@ -284,23 +289,34 @@ for relationship_type in relationship_types:
 
 print()
 print("=" * 70)
-print("FINAL PROPOSED EVENT VALUES")
+print("FINAL EVENT PROPERTY VALUES")
 print("=" * 70)
+
+properties_to_update = {}
 
 for relationship_type in relationship_types:
     event_property = EVENT_RELATION_PROPERTIES.get(
         relationship_type
     )
 
-    print()
-    print(event_property + ":")
+    if not event_property:
+        continue
 
     ids = results.get(
         relationship_type,
         [],
     )
 
+    print()
+    print(event_property + ":")
     print(ids)
+
+    properties_to_update[event_property] = {
+        "relation": [
+            {"id": cat_id}
+            for cat_id in ids
+        ]
+    }
 
 print()
 print("=" * 70)
@@ -337,7 +353,24 @@ if maplepaw_id:
 
 print()
 print("=" * 70)
-print("TEST COMPLETE")
+print("UPDATING EVENT")
 print("=" * 70)
-print("NO UPDATE API CALLS WERE MADE.")
-print("NO NOTION DATA WAS MODIFIED.")
+
+print()
+print("Updating Event relations...")
+
+notion.pages.update(
+    page_id=event_id,
+    properties=properties_to_update,
+)
+
+print("Event updated successfully.")
+
+print()
+print("=" * 70)
+print("BUILD COMPLETE")
+print("=" * 70)
+print("The calculated relationships were written to the Event.")
+print("No All Cats pages were modified.")
+print("=" * 70)
+```
