@@ -12,7 +12,8 @@ CATS_DATA_SOURCE_ID = "cf09cd66-e972-8293-8c29-073c01330f5b"
 notion = Client(auth=NOTION_TOKEN)
 
 TARGET_EVENT_TITLE = (
-    "Cliffshock and Larchstipe get sore pawpads after failing to find lungwort"
+    "Blackchirp did a poor job of explaining a fighting move to Growlpaw "
+    "and Blackchirp yelled at her"
 )
 
 RELATIONSHIP_PROPERTIES = {
@@ -159,13 +160,13 @@ if event is None:
 
     print("ERROR: Target event was not found.")
     print()
-    print("Events containing 'Cliffshock' and 'Larchstipe':")
+    print("Events containing 'Blackchirp' and 'Growlpaw':")
 
     for page in events:
 
         title = get_title(page)
 
-        if "Cliffshock" in title and "Larchstipe" in title:
+        if "Blackchirp" in title and "Growlpaw" in title:
 
             print()
             print("Title:")
@@ -266,6 +267,10 @@ print("=" * 70)
 print("RELATIONSHIP TYPES")
 print("=" * 70)
 
+print("Raw formula value:")
+print(repr(relationship_formula))
+
+print("Parsed relationship types:")
 print(relationship_types)
 
 # ------------------------------------------------------------
@@ -280,6 +285,11 @@ print()
 print("=" * 70)
 print("CALCULATED EVENT RELATIONS")
 print("=" * 70)
+
+if not relationship_types:
+
+    print("No relationship types were found.")
+    print("No Event relationship properties will be changed.")
 
 for relationship_type in relationship_types:
 
@@ -397,51 +407,6 @@ for relationship_type in relationship_types:
     }
 
 # ------------------------------------------------------------
-# SAFETY CHECK
-# ------------------------------------------------------------
-
-print()
-print("=" * 70)
-print("SAFETY CHECK")
-print("=" * 70)
-
-maplepaw_id = None
-
-for page in cats:
-
-    if get_title(page) == "Maplepaw":
-
-        maplepaw_id = page["id"]
-
-        break
-
-if maplepaw_id:
-
-    print("Maplepaw direct participant:")
-    print(maplepaw_id in participant_set)
-
-    print()
-    print("Maplepaw appears in proposed Event relations:")
-
-    found = False
-
-    for relationship_type, ids in results.items():
-
-        if maplepaw_id in ids:
-
-            print(
-                "ERROR:",
-                relationship_type,
-                "-> MAPLEPAW",
-            )
-
-            found = True
-
-    if not found:
-
-        print("NO")
-
-# ------------------------------------------------------------
 # UPDATE EVENT
 # ------------------------------------------------------------
 
@@ -450,15 +415,21 @@ print("=" * 70)
 print("UPDATING EVENT")
 print("=" * 70)
 
-print()
-print("Updating Event relations...")
+if not properties_to_update:
 
-notion.pages.update(
-    page_id=event_id,
-    properties=properties_to_update,
-)
+    print("No relationship properties need updating.")
 
-print("Event updated successfully.")
+else:
+
+    print()
+    print("Updating Event relations...")
+
+    notion.pages.update(
+        page_id=event_id,
+        properties=properties_to_update,
+    )
+
+    print("Event updated successfully.")
 
 # ------------------------------------------------------------
 # READ BACK FROM NOTION
@@ -469,76 +440,82 @@ print("=" * 70)
 print("READ-BACK VERIFICATION")
 print("=" * 70)
 
-print()
-print("Retrieving Event again from Notion...")
+if not properties_to_update:
 
-updated_event = notion.pages.retrieve(
-    page_id=event_id
-)
+    print("Nothing was written, so there is nothing to verify.")
 
-print("Event retrieved successfully.")
+else:
 
-updated_properties = updated_event.get(
-    "properties",
-    {}
-)
+    print()
+    print("Retrieving Event again from Notion...")
 
-verification_failed = False
-
-for relationship_type in relationship_types:
-
-    event_property = EVENT_RELATION_PROPERTIES.get(
-        relationship_type
+    updated_event = notion.pages.retrieve(
+        page_id=event_id
     )
 
-    if not event_property:
-        continue
+    print("Event retrieved successfully.")
 
-    expected_ids = results.get(
-        relationship_type,
-        []
+    updated_properties = updated_event.get(
+        "properties",
+        {}
     )
 
-    property_data = updated_properties.get(
-        event_property
-    )
+    verification_failed = False
 
-    if not property_data:
+    for relationship_type in relationship_types:
+
+        event_property = EVENT_RELATION_PROPERTIES.get(
+            relationship_type
+        )
+
+        if not event_property:
+            continue
+
+        expected_ids = results.get(
+            relationship_type,
+            []
+        )
+
+        property_data = updated_properties.get(
+            event_property
+        )
+
+        if not property_data:
+
+            print()
+            print(event_property + ":")
+            print("ERROR: Property was not returned.")
+
+            verification_failed = True
+
+            continue
+
+        actual_ids = [
+            item["id"]
+            for item in property_data.get(
+                "relation",
+                []
+            )
+            if item.get("id")
+        ]
 
         print()
         print(event_property + ":")
-        print("ERROR: Property was not returned.")
+        print("Expected:")
+        print(expected_ids)
 
-        verification_failed = True
+        print("Stored:")
+        print(actual_ids)
 
-        continue
+        if actual_ids == expected_ids:
 
-    actual_ids = [
-        item["id"]
-        for item in property_data.get(
-            "relation",
-            []
-        )
-        if item.get("id")
-    ]
+            print("VERIFICATION: PASS")
 
-    print()
-    print(event_property + ":")
-    print("Expected:")
-    print(expected_ids)
+        else:
 
-    print("Stored:")
-    print(actual_ids)
+            print("VERIFICATION: FAIL")
 
-    if actual_ids == expected_ids:
-
-        print("VERIFICATION: PASS")
-
-    else:
-
-        print("VERIFICATION: FAIL")
-
-        verification_failed = True
+            verification_failed = True
 
 # ------------------------------------------------------------
 # FINAL RESULT
@@ -549,7 +526,14 @@ print("=" * 70)
 print("BUILD COMPLETE")
 print("=" * 70)
 
-if verification_failed:
+if not relationship_types:
+
+    print(
+        "SUCCESS: Event has no relationship types. "
+        "No Event relations were changed."
+    )
+
+elif verification_failed:
 
     print(
         "WARNING: One or more Event relations "
