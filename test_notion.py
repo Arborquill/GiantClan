@@ -21,26 +21,15 @@ def get_events():
 def get_page_name(page):
     properties = page.get("properties", {})
 
-    name_property = properties.get("Name")
+    name_property = properties.get("Event")
 
     if not name_property:
-        name_property = properties.get("Event")
-
-    if not name_property:
-        return "(no name property)"
+        return "(no Event property)"
 
     title_data = name_property.get("title", [])
 
     if title_data:
         return title_data[0].get(
-            "plain_text",
-            "(unnamed)"
-        )
-
-    rich_text_data = name_property.get("rich_text", [])
-
-    if rich_text_data:
-        return rich_text_data[0].get(
             "plain_text",
             "(unnamed)"
         )
@@ -69,6 +58,17 @@ def get_relationship_type_value(page):
     return formula.get("string")
 
 
+def split_relationship_types(value):
+    if not value:
+        return []
+
+    return [
+        relationship.strip()
+        for relationship in value.split("·")
+        if relationship.strip()
+    ]
+
+
 def main():
     print("Connecting to Notion...")
     print()
@@ -78,7 +78,7 @@ def main():
     print("Connection successful.")
     print()
     print("=" * 70)
-    print("PYTHON FORMULA VALUE TEST")
+    print("RELATIONSHIP TYPE PARSING TEST")
     print("=" * 70)
     print("READ ONLY - NOTHING WILL BE CHANGED")
     print()
@@ -90,36 +90,48 @@ def main():
     failed = 0
 
     for number, event in enumerate(events, start=1):
-        event_name = get_page_name(event)
-        event_id = event.get("id")
-
         print("-" * 70)
         print(f"EVENT {number}")
         print("-" * 70)
+
+        event_name = get_page_name(event)
+        event_id = event.get("id")
+
         print(f"Name: {event_name}")
         print(f"ID: {event_id}")
+        print()
 
         try:
-            relationship_type = get_relationship_type_value(
-                event
+            formula_value = get_relationship_type_value(event)
+
+            print("Formula value:")
+            print(repr(formula_value))
+            print()
+
+            if not formula_value:
+                print("Parsed relationships:")
+                print([])
+                print()
+                print("RESULT: EMPTY")
+                empty += 1
+                continue
+
+            relationships = split_relationship_types(
+                formula_value
             )
 
+            print("Parsed relationships:")
+            print(repr(relationships))
             print()
-            print("Relationship Type returned to Python:")
-            print(repr(relationship_type))
 
-            if relationship_type is None:
-                print()
-                print("RESULT: EMPTY OR NOT A STRING FORMULA")
-                empty += 1
-            else:
-                print()
-                print("RESULT: SUCCESS")
-                print(f"Value: {relationship_type}")
-                print(
-                    f"Python type: {type(relationship_type).__name__}"
-                )
-                successful += 1
+            print("Individual relationship checks:")
+
+            for relationship in relationships:
+                print(f"  - {relationship}")
+
+            print()
+            print("RESULT: SUCCESS")
+            successful += 1
 
         except Exception as error:
             print()
@@ -132,17 +144,15 @@ def main():
     print("=" * 70)
     print("TEST SUMMARY")
     print("=" * 70)
-    print(f"Successful formula values: {successful}")
-    print(f"Empty/non-string values:   {empty}")
-    print(f"Failed retrievals:         {failed}")
+    print(f"Successfully parsed: {successful}")
+    print(f"Empty values:        {empty}")
+    print(f"Failed:              {failed}")
     print()
 
-    if failed == 0 and successful > 0:
-        print("PYTHON CAN RELIABLY RETRIEVE THE FORMULA STRING VALUE.")
-    elif failed == 0 and successful == 0:
-        print("No usable formula string values were retrieved.")
+    if failed == 0:
+        print("RELATIONSHIP TYPE PARSING TEST PASSED.")
     else:
-        print("Some formula value retrievals failed.")
+        print("RELATIONSHIP TYPE PARSING TEST HAD FAILURES.")
 
     print()
     print("=" * 70)
