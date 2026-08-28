@@ -1,4 +1,3 @@
-```python
 import os
 from notion_client import Client
 
@@ -373,4 +372,3 @@ print("=" * 70)
 print("The calculated relationships were written to the Event.")
 print("No All Cats pages were modified.")
 print("=" * 70)
-```
