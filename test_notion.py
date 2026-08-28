@@ -3,7 +3,8 @@ from notion_client import Client
 
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
 
-HAWKKIT_EVENT_ID = "3c89cd66-e972-805a-a8ce-fef962c23d09"
+HAWKKIT_ID = "3c89cd66-e972-805a-a8ce-fef962c23d09"
+ACTUAL_EVENT_ID = "3c89cd66-e972-8082-9ae3-f4b5c6fe3ca3"
 MAPLEPAW_ID = "3c09cd66-e972-80f9-9355-c0df84dd19ec"
 
 notion = Client(auth=NOTION_TOKEN)
@@ -19,14 +20,17 @@ def get_plain_text(rich_text):
         if not isinstance(item, dict):
             continue
 
-        plain = item.get("plain_text")
-        if plain:
-            parts.append(plain)
+        plain_text = item.get("plain_text")
 
-        elif item.get("text"):
+        if plain_text:
+            parts.append(plain_text)
+
+        else:
             text_data = item.get("text")
+
             if isinstance(text_data, dict):
                 content = text_data.get("content")
+
                 if content:
                     parts.append(content)
 
@@ -46,149 +50,232 @@ def get_relation_ids(property_value):
 
     for item in relation:
         if isinstance(item, dict):
-            cat_id = item.get("id")
-            if cat_id:
-                ids.append(cat_id)
+            relation_id = item.get("id")
+
+            if relation_id:
+                ids.append(relation_id)
 
     return ids
 
 
+def get_title(properties):
+    for prop in properties.values():
+        if not isinstance(prop, dict):
+            continue
+
+        if prop.get("type") == "title":
+            return get_plain_text(prop.get("title", []))
+
+    return ""
+
+
+def get_event_property_text(properties, property_name):
+    prop = properties.get(property_name)
+
+    if not isinstance(prop, dict):
+        return ""
+
+    prop_type = prop.get("type")
+
+    if prop_type == "title":
+        return get_plain_text(prop.get("title", []))
+
+    if prop_type == "rich_text":
+        return get_plain_text(prop.get("rich_text", []))
+
+    return ""
+
+
 print("=" * 70)
-print("HAWKKIT EVENT CONTENT + PARTICIPATION TEST")
+print("ACTUAL HAWKKIT EVENT INSPECTION")
 print("=" * 70)
 print("READ ONLY - NOTHING WILL BE CHANGED")
 print()
 
 print("Connecting to Notion...")
-notion.pages.retrieve(page_id=HAWKKIT_EVENT_ID)
+notion.pages.retrieve(page_id=HAWKKIT_ID)
 print("Connection successful.")
 print()
 
 # ----------------------------------------------------------------------
-# RETRIEVE HAWKKIT PAGE
+# HAWKKIT CAT PAGE
 # ----------------------------------------------------------------------
 
 print("=" * 70)
-print("HAWKKIT PAGE")
+print("HAWKKIT CAT PAGE")
 print("=" * 70)
 
-page = notion.pages.retrieve(page_id=HAWKKIT_EVENT_ID)
+hawkkit_page = notion.pages.retrieve(page_id=HAWKKIT_ID)
+hawkkit_properties = hawkkit_page.get("properties", {})
 
-print("Page ID:")
-print(HAWKKIT_EVENT_ID)
+print("Hawkkit ID:")
+print(HAWKKIT_ID)
 print()
 
-properties = page.get("properties", {})
+print("Hawkkit title:")
+print(repr(get_title(hawkkit_properties)))
+print()
+
+print("Subject of an Event:")
+subject_event_prop = hawkkit_properties.get("Subject of an Event")
+
+if subject_event_prop:
+    subject_event_ids = get_relation_ids(subject_event_prop)
+
+    print(subject_event_ids)
+else:
+    subject_event_ids = []
+    print("NOT PRESENT")
+
+print()
+
+# ----------------------------------------------------------------------
+# ACTUAL EVENT PAGE
+# ----------------------------------------------------------------------
+
+print("=" * 70)
+print("ACTUAL EVENT PAGE")
+print("=" * 70)
+
+event_page = notion.pages.retrieve(page_id=ACTUAL_EVENT_ID)
+event_properties = event_page.get("properties", {})
+
+print("Event ID:")
+print(ACTUAL_EVENT_ID)
+print()
+
+print("Event title:")
+print(repr(get_title(event_properties)))
+print()
 
 print("Property names:")
-print(list(properties.keys()))
+print(list(event_properties.keys()))
 print()
 
 # ----------------------------------------------------------------------
-# INSPECT ALL RELEVANT PROPERTIES
+# INSPECT ALL RELATION PROPERTIES
 # ----------------------------------------------------------------------
 
 print("=" * 70)
-print("RELEVANT EVENT PROPERTIES")
+print("EVENT RELATION PROPERTIES")
 print("=" * 70)
 
-for property_name in [
-    "Name",
-    "Event",
-    "Subject of an Event",
-    "Subject Cat",
-    "Related Cats",
-    "Siblings",
-    "Parents",
-    "Historical Events",
-]:
-    if property_name not in properties:
-        print(property_name + ": NOT PRESENT")
-        print()
+relation_properties = {}
+
+for property_name, prop in event_properties.items():
+
+    if not isinstance(prop, dict):
         continue
 
-    prop = properties[property_name]
+    if prop.get("type") != "relation":
+        continue
+
+    ids = get_relation_ids(prop)
+
+    relation_properties[property_name] = ids
 
     print(property_name + ":")
-    print("  Type:", prop.get("type"))
-
-    prop_type = prop.get("type")
-
-    if prop_type == "title":
-        value = prop.get("title", [])
-        print("  Text:", repr(get_plain_text(value)))
-
-    elif prop_type == "rich_text":
-        value = prop.get("rich_text", [])
-        print("  Text:", repr(get_plain_text(value)))
-
-    elif prop_type == "relation":
-        value = prop.get("relation", [])
-        print("  Relation IDs:", get_relation_ids(prop))
-
-    else:
-        print("  Raw value:", prop.get(prop_type))
-
+    print("  IDs:", ids)
     print()
 
 # ----------------------------------------------------------------------
-# RETRIEVE PAGE CONTENT BLOCKS
+# INSPECT EVENT TEXT PROPERTIES
 # ----------------------------------------------------------------------
 
 print("=" * 70)
-print("PAGE CONTENT BLOCKS")
+print("EVENT TEXT PROPERTIES")
 print("=" * 70)
 
-blocks = notion.blocks.children.list(block_id=HAWKKIT_EVENT_ID)
+for property_name in event_properties:
 
-print("Number of blocks returned:")
-print(len(blocks.get("results", [])))
+    text = get_event_property_text(
+        event_properties,
+        property_name
+    )
+
+    if text:
+        print(property_name + ":")
+        print(repr(text))
+        print()
+
+# ----------------------------------------------------------------------
+# PAGE CONTENT
+# ----------------------------------------------------------------------
+
+print("=" * 70)
+print("EVENT PAGE CONTENT")
+print("=" * 70)
+
+blocks_response = notion.blocks.children.list(
+    block_id=ACTUAL_EVENT_ID
+)
+
+blocks = blocks_response.get("results", [])
+
+print("Number of top-level blocks:")
+print(len(blocks))
 print()
 
-all_page_text = []
+all_text = []
 
-for index, block in enumerate(blocks.get("results", []), start=1):
+
+def inspect_block(block, indent=""):
     block_type = block.get("type")
 
-    print("BLOCK", index)
-    print("Type:", block_type)
+    print(indent + "Block type:", block_type)
 
     block_data = block.get(block_type)
 
     if isinstance(block_data, dict):
+
         rich_text = block_data.get("rich_text")
 
         if isinstance(rich_text, list):
+
             text = get_plain_text(rich_text)
 
             if text:
-                print("Text:")
-                print(repr(text))
-                all_page_text.append(text)
+                print(indent + "Text:")
+                print(indent + repr(text))
+                all_text.append(text)
 
-    print("-" * 70)
+    print()
 
-print()
+    if block_type == "column_list":
+        try:
+            children_response = notion.blocks.children.list(
+                block_id=block.get("id")
+            )
 
-# ----------------------------------------------------------------------
-# COMBINED EVENT TEXT
-# ----------------------------------------------------------------------
+            children = children_response.get("results", [])
+
+            for child in children:
+                inspect_block(child, indent + "  ")
+
+        except Exception as error:
+            print(indent + "Could not retrieve child blocks:")
+            print(indent + repr(error))
+            print()
+
+
+for block in blocks:
+    inspect_block(block)
 
 print("=" * 70)
 print("COMBINED EVENT TEXT")
 print("=" * 70)
 
-combined_text = " ".join(all_page_text)
+combined_text = " ".join(all_text)
 
 if combined_text:
     print(repr(combined_text))
 else:
-    print("NO PAGE TEXT FOUND.")
+    print("NO EVENT TEXT FOUND.")
 
 print()
 
 # ----------------------------------------------------------------------
-# MAPLEPAW CHECK
+# MAPLEPAW PARTICIPATION
 # ----------------------------------------------------------------------
 
 print("=" * 70)
@@ -199,47 +286,66 @@ print("Maplepaw ID:")
 print(MAPLEPAW_ID)
 print()
 
-maplepaw_in_any_relation = False
+found_maplepaw = False
 
-for property_name in properties:
-    prop = properties[property_name]
+for property_name, ids in relation_properties.items():
 
-    if prop.get("type") != "relation":
-        continue
+    if MAPLEPAW_ID in ids:
 
-    relation_ids = get_relation_ids(prop)
+        print("Maplepaw IS present in:")
+        print("  " + property_name)
 
-    if MAPLEPAW_ID in relation_ids:
-        print("Maplepaw appears in relation property:")
-        print(property_name)
-        print()
+        found_maplepaw = True
 
-        maplepaw_in_any_relation = True
+if not found_maplepaw:
+    print("Maplepaw is NOT present in any event relation property.")
 
-if not maplepaw_in_any_relation:
-    print("Maplepaw is NOT present in any relation property on this event.")
-    print()
+print()
 
 # ----------------------------------------------------------------------
-# TEXT SEARCH
+# HAWKKIT PARTICIPATION
 # ----------------------------------------------------------------------
 
 print("=" * 70)
-print("ORPHANED LITTER TEXT SEARCH")
+print("HAWKKIT PARTICIPATION CHECK")
 print("=" * 70)
 
-search_phrases = [
-    "orphaned litter",
-    "dead monster",
-    "Cliffshock",
-    "Blackchirp",
-]
+found_hawkkit = False
 
-for phrase in search_phrases:
-    found = phrase.lower() in combined_text.lower()
+for property_name, ids in relation_properties.items():
 
-    print(repr(phrase), "->", found)
+    if HAWKKIT_ID in ids:
 
+        print("Hawkkit IS present in:")
+        print("  " + property_name)
+
+        found_hawkkit = True
+
+if not found_hawkkit:
+    print("Hawkkit is NOT present in any event relation property.")
+
+print()
+
+# ----------------------------------------------------------------------
+# FINAL INTERPRETATION
+# ----------------------------------------------------------------------
+
+print("=" * 70)
+print("PARTICIPATION INTERPRETATION")
+print("=" * 70)
+
+if found_hawkkit:
+    print("Hawkkit qualifies as an actual participant in this event.")
+else:
+    print("Hawkkit does NOT qualify as an actual participant.")
+
+if found_maplepaw:
+    print("Maplepaw qualifies as an actual participant in this event.")
+else:
+    print("Maplepaw does NOT qualify as an actual participant.")
+
+print()
+print("SIBLINGSHIP ALONE MUST NOT BE USED TO DETERMINE EVENT PARTICIPATION.")
 print()
 
 print("=" * 70)
