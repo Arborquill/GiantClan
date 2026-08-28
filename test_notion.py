@@ -3,25 +3,27 @@ from notion_client import Client
 
 
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
-ALL_CATS_DATA_SOURCE_ID = "9849cd66-e972-8390-b142-01cdd6b8b3a6"
-EVENTS_DATA_SOURCE_ID = "cf09cd66-e972-8293-8c29-073c01330f5b"
+
+TEST_EVENT_ID = "3c99cd66-e972-80fc-a803-de69fe8bd6de"
 
 
 def get_plain_text(property_data):
-    """Extract plain text from a Notion title/rich_text property."""
     if not property_data:
         return ""
 
-    results = property_data.get("title") or property_data.get("rich_text") or []
+    items = (
+        property_data.get("title")
+        or property_data.get("rich_text")
+        or []
+    )
 
     return "".join(
         item.get("plain_text", "")
-        for item in results
+        for item in items
     )
 
 
 def get_relation_ids(property_data):
-    """Extract related page IDs from a Notion relation property."""
     if not property_data:
         return []
 
@@ -32,20 +34,16 @@ def get_relation_ids(property_data):
 
 
 def get_cat_name(notion, cat_id):
-    """Retrieve a cat page and return its name."""
     page = notion.pages.retrieve(page_id=cat_id)
-    properties = page.get("properties", {})
 
-    # Find the title property rather than assuming its name.
-    for prop in properties.values():
-        if prop.get("type") == "title":
-            return get_plain_text(prop)
+    for property_data in page.get("properties", {}).values():
+        if property_data.get("type") == "title":
+            return get_plain_text(property_data)
 
     return "(Unnamed cat)"
 
 
 def get_relationship_formula(event):
-    """Retrieve the Relationship Type formula as a Python string."""
     property_data = event["properties"].get("Relationship Type")
 
     if not property_data:
@@ -57,7 +55,6 @@ def get_relationship_formula(event):
 
 
 def parse_relationships(formula_value):
-    """Turn 'Cohort · Mate · Mentor' into a list of relationship names."""
     if not formula_value:
         return []
 
@@ -68,23 +65,42 @@ def parse_relationships(formula_value):
     ]
 
 
-def test_cohort_processing(notion, event):
+def main():
+    notion = Client(auth=NOTION_TOKEN)
+
+    print("Connecting to Notion...")
+    notion.users.me()
+    print("Connection successful.")
+    print()
+
     print("=" * 70)
     print("COHORT PROCESSING TEST")
     print("=" * 70)
     print("READ ONLY - NOTHING WILL BE CHANGED")
     print()
 
-    event_id = event["id"]
-    event_name = get_plain_text(event["properties"].get("Event"))
+    # ---------------------------------------------------------------
+    # Retrieve the exact event used by the previous successful tests
+    # ---------------------------------------------------------------
+
+    event = notion.pages.retrieve(
+        page_id=TEST_EVENT_ID
+    )
+
+    properties = event.get("properties", {})
+
+    event_text = get_plain_text(
+        properties.get("Event")
+    )
 
     print("Event:")
-    print(event_name)
-    print("ID:", event_id)
+    print(event_text)
+    print("ID:")
+    print(TEST_EVENT_ID)
     print()
 
     # ---------------------------------------------------------------
-    # Retrieve the relationship formula
+    # Relationship Type
     # ---------------------------------------------------------------
 
     formula_value = get_relationship_formula(event)
@@ -100,11 +116,12 @@ def test_cohort_processing(notion, event):
     print()
 
     # ---------------------------------------------------------------
-    # Retrieve Subject Cats
+    # Subject Cats
     # ---------------------------------------------------------------
 
-    subject_property = event["properties"].get("Subject Cat")
-    subject_ids = get_relation_ids(subject_property)
+    subject_ids = get_relation_ids(
+        properties.get("Subject Cat")
+    )
 
     print("-" * 70)
     print("SUBJECT CATS")
@@ -120,16 +137,17 @@ def test_cohort_processing(notion, event):
             "name": cat_name,
         })
 
-        print(f"Cat: {cat_name}")
-        print(f"ID:  {cat_id}")
+        print(f"{cat_name}")
+        print(f"ID: {cat_id}")
         print()
 
     # ---------------------------------------------------------------
-    # Retrieve Related Cats
+    # Related Cats
     # ---------------------------------------------------------------
 
-    related_property = event["properties"].get("Related Cats")
-    related_ids = get_relation_ids(related_property)
+    related_ids = get_relation_ids(
+        properties.get("Related Cats")
+    )
 
     print("-" * 70)
     print("RELATED CATS")
@@ -145,12 +163,12 @@ def test_cohort_processing(notion, event):
             "name": cat_name,
         })
 
-        print(f"Cat: {cat_name}")
-        print(f"ID:  {cat_id}")
+        print(f"{cat_name}")
+        print(f"ID: {cat_id}")
         print()
 
     # ---------------------------------------------------------------
-    # Cohort processing
+    # Cohort detection
     # ---------------------------------------------------------------
 
     print("-" * 70)
@@ -158,79 +176,60 @@ def test_cohort_processing(notion, event):
     print("-" * 70)
 
     if "Cohort" not in relationships:
-        print("Cohort relationship was NOT detected.")
-        print("Cohort processing was skipped.")
+        print("ERROR: Cohort was not detected.")
+        print()
+        print("Expected Relationship Type to contain:")
+        print("Cohort")
+        print()
+        print("Actual formula value:")
+        print(repr(formula_value))
         return
 
     print("Cohort relationship detected.")
     print()
 
-    print("The Cohort processor would receive:")
-    print()
-
-    print("Subject Cats:")
-    for cat in subject_cats:
-        print(f"  - {cat['name']} ({cat['id']})")
-
-    print()
-
-    print("Related Cats:")
-    for cat in related_cats:
-        print(f"  - {cat['name']} ({cat['id']})")
-
-    print()
-
     # ---------------------------------------------------------------
-    # Simulate the logical operation without writing anything
+    # Simulate Cohort processing
     # ---------------------------------------------------------------
 
-    print("SIMULATED COHORT RESULT")
+    print("SUBJECT -> RELATED PAIRS")
     print("-" * 70)
 
     if not subject_cats:
-        print("No Subject Cats were found.")
+        print("No Subject Cats found.")
     elif not related_cats:
-        print("No Related Cats were found.")
+        print("No Related Cats found.")
     else:
         for subject in subject_cats:
             for related in related_cats:
                 print(
-                    f"Would establish Cohort relationship: "
-                    f"{subject['name']} <-> {related['name']}"
+                    f"{subject['name']} "
+                    f"<-> "
+                    f"{related['name']}"
                 )
+
+    print()
+
+    # ---------------------------------------------------------------
+    # Explicit summary of what would happen
+    # ---------------------------------------------------------------
+
+    print("-" * 70)
+    print("WOULD PERFORM")
+    print("-" * 70)
+
+    for subject in subject_cats:
+        for related in related_cats:
+            print(
+                f"Would add {related['name']} to "
+                f"{subject['name']}'s Cohort relationship."
+            )
 
     print()
     print("=" * 70)
     print("TEST COMPLETE")
     print("No Notion pages or properties were modified.")
     print("=" * 70)
-
-
-def main():
-    notion = Client(auth=NOTION_TOKEN)
-
-    print("Connecting to Notion...")
-    notion.users.me()
-    print("Connection successful.")
-    print()
-
-    print("=" * 70)
-    print("FINDING HISTORICAL EVENT")
-    print("=" * 70)
-
-    response = notion.data_sources.query(
-        data_source_id=EVENTS_DATA_SOURCE_ID
-    )
-
-    events = response.get("results", [])
-
-    if not events:
-        print("No events were returned.")
-        return
-
-    event = events[0]
-
-    test_cohort_processing(notion, event)
 
 
 if __name__ == "__main__":
