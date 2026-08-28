@@ -17,44 +17,37 @@ print()
 print("Connecting to Notion...")
 notion.users.me()
 print("Connection successful.")
+print()
 
 event = notion.pages.retrieve(page_id=EVENT_ID)
+properties = event["properties"]
 
-print()
 print("=" * 70)
 print("TARGET EVENT")
 print("=" * 70)
 
 print("Event ID:")
 print(EVENT_ID)
-
-properties = event["properties"]
-
 print()
-print("Property names:")
-print(list(properties.keys()))
 
+print("Event title:")
+print(repr(properties.get("Event", {}).get("rich_text", [])))
 print()
+
+subject_property = properties.get("Subject Cat", {})
+related_property = properties.get("Related Cats", {})
+
+subject_relation = subject_property.get("relation", [])
+related_relation = related_property.get("relation", [])
+
+subject_ids = [x["id"] for x in subject_relation]
+related_ids = [x["id"] for x in related_relation]
+
+participant_ids = subject_ids + related_ids
+
 print("=" * 70)
 print("DIRECT EVENT PARTICIPANTS")
 print("=" * 70)
-
-subject_ids = []
-related_ids = []
-
-if "Subject Cat" in properties:
-subject_ids = [
-item["id"]
-for item in properties["Subject Cat"].get("relation", [])
-]
-
-if "Related Cats" in properties:
-related_ids = [
-item["id"]
-for item in properties["Related Cats"].get("relation", [])
-]
-
-participant_ids = list(dict.fromkeys(subject_ids + related_ids))
 
 print()
 print("Subject Cat IDs:")
@@ -65,31 +58,36 @@ print("Related Cats IDs:")
 print(related_ids)
 
 print()
-print("ALL DIRECT PARTICIPANT IDs:")
+print("All direct participant IDs:")
 print(participant_ids)
 
 print()
 print("=" * 70)
-print("MAPLEPAW PARTICIPATION")
+print("MAPLEPAW CHECK")
 print("=" * 70)
 
 print()
 print("Maplepaw ID:")
 print(MAPLEPAW_ID)
 
-if MAPLEPAW_ID in participant_ids:
 print()
-print("RESULT: Maplepaw IS a direct participant.")
-else:
+print("Maplepaw in Subject Cat:")
+print(MAPLEPAW_ID in subject_ids)
+
 print()
-print("RESULT: Maplepaw is NOT a direct participant.")
+print("Maplepaw in Related Cats:")
+print(MAPLEPAW_ID in related_ids)
+
+print()
+print("Maplepaw is a direct event participant:")
+print(MAPLEPAW_ID in participant_ids)
 
 print()
 print("=" * 70)
-print("RELATIONSHIP-SPECIFIC EVENT PROPERTIES")
+print("RELATIONSHIP PROPERTIES")
 print("=" * 70)
 
-relationship_properties = [
+relationship_names = [
 "Sibling Cats",
 "Parent Cats",
 "Mate Cats",
@@ -98,58 +96,36 @@ relationship_properties = [
 "Apprentice Cats"
 ]
 
-for property_name in relationship_properties:
-print()
-print(property_name + ":")
+for_name_results = []
 
-```
-if property_name not in properties:
-    print("  PROPERTY NOT FOUND")
-    continue
-
-prop = properties[property_name]
-
-print("  Property type:", prop.get("type"))
-
-if prop.get("type") != "relation":
-    print("  Not a relation property.")
-    continue
-
-ids = [
-    item["id"]
-    for item in prop.get("relation", [])
-]
-
-print("  IDs:", ids)
-
-if MAPLEPAW_ID in ids:
-    print("  MAPLEPAW IS LISTED HERE.")
-else:
-    print("  Maplepaw is not listed here.")
-```
+for relationship_name in relationship_names:
+property_data = properties.get(relationship_name, {})
+property_type = property_data.get("type")
+relation_items = property_data.get("relation", [])
+relation_ids = [x["id"] for x in relation_items]
+for_name_results.append((relationship_name, property_type, relation_ids))
 
 print()
+
+for result in for_name_results:
+print(result[0] + ":")
+print("  Type:", result[1])
+print("  IDs:", result[2])
+print("  Maplepaw listed:", MAPLEPAW_ID in result[2])
+print()
+
 print("=" * 70)
-print("EXPECTED BEHAVIOR")
+print("EXPECTED RESULT")
 print("=" * 70)
 
 print()
-print("Maplepaw must NOT appear in this event merely because")
-print("he is a sibling of kits who appear in the event.")
+print("Maplepaw should NOT appear in this event's cat-specific")
+print("event view merely because he is related to participants.")
 print()
-print("Maplepaw should only be considered an event participant")
-print("when his own page is represented in Subject Cat or Related Cats.")
+print("He must be an actual participant through Subject Cat")
+print("or Related Cats.")
 print()
 
-if MAPLEPAW_ID not in participant_ids:
-print("PASS:")
-print("Maplepaw is not a direct participant and should not")
-print("appear in his event views.")
-else:
-print("WARNING:")
-print("Maplepaw is directly participating in this event.")
-
-print()
 print("=" * 70)
 print("TEST COMPLETE")
 print("NO UPDATE API CALLS WERE MADE.")
