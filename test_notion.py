@@ -15,7 +15,7 @@ notion = Client(auth=NOTION_TOKEN)
 # TARGET EVENT
 # ------------------------------------------------------------
 
-EVENT_ID = "3c59cd66-e972-807b-a437-c3242956a733"
+EVENT_ID = "3c29cd66-e972-80f5-9cd9-c9bcc3f87899"
 
 RELATIONSHIP_PROPERTIES = {
     "Kit": "Kits",
