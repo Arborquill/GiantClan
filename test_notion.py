@@ -3,383 +3,245 @@ from notion_client import Client
 
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
 
-# This is the actual Events data source ID established in our earlier tests.
-EVENTS_DATA_SOURCE_ID = "cf09cd66-e972-8293-8c29-073c01330f5b"
-
-SEARCH_TEXT = "orphaned litter"
+HAWKKIT_EVENT_ID = "3c89cd66-e972-805a-a8ce-fef962c23d09"
+MAPLEPAW_ID = "3c09cd66-e972-80f9-9355-c0df84dd19ec"
 
 notion = Client(auth=NOTION_TOKEN)
 
 
-def get_plain_text(prop):
-    if not prop:
+def get_plain_text(rich_text):
+    if not isinstance(rich_text, list):
         return ""
 
-    if prop.get("type") == "title":
-        items = prop.get("title", [])
-    elif prop.get("type") == "rich_text":
-        items = prop.get("rich_text", [])
-    else:
-        return ""
+    parts = []
 
-    return "".join(
-        item.get("plain_text", "")
-        for item in items
-    )
+    for item in rich_text:
+        if not isinstance(item, dict):
+            continue
+
+        plain = item.get("plain_text")
+        if plain:
+            parts.append(plain)
+
+        elif item.get("text"):
+            text_data = item.get("text")
+            if isinstance(text_data, dict):
+                content = text_data.get("content")
+                if content:
+                    parts.append(content)
+
+    return "".join(parts)
 
 
-def get_relation_ids(prop):
-    if not prop:
+def get_relation_ids(property_value):
+    if not isinstance(property_value, dict):
         return []
 
-    if prop.get("type") != "relation":
+    relation = property_value.get("relation")
+
+    if not isinstance(relation, list):
         return []
 
-    return [
-        item["id"]
-        for item in prop.get("relation", [])
-    ]
+    ids = []
 
+    for item in relation:
+        if isinstance(item, dict):
+            cat_id = item.get("id")
+            if cat_id:
+                ids.append(cat_id)
 
-def get_page_title(page):
-    for prop in page.get("properties", {}).values():
-        if prop.get("type") == "title":
-            return get_plain_text(prop)
-
-    return "(unnamed)"
-
-
-def get_event_text(page):
-    properties = page.get("properties", {})
-
-    for property_name in [
-        "Event",
-        "Description",
-        "Note",
-    ]:
-        if property_name in properties:
-            text = get_plain_text(properties[property_name])
-
-            if text:
-                return text
-
-    return ""
-
-
-def get_cat_name(cat_id):
-    page = notion.pages.retrieve(page_id=cat_id)
-    return get_page_title(page)
+    return ids
 
 
 print("=" * 70)
-print("SIBLING EVENT PARTICIPATION TEST")
+print("HAWKKIT EVENT CONTENT + PARTICIPATION TEST")
 print("=" * 70)
 print("READ ONLY - NOTHING WILL BE CHANGED")
 print()
 
 print("Connecting to Notion...")
-
-response = notion.data_sources.query(
-    data_source_id=EVENTS_DATA_SOURCE_ID
-)
-
-events = []
-
-while True:
-    events.extend(response.get("results", []))
-
-    if not response.get("has_more"):
-        break
-
-    response = notion.data_sources.query(
-        data_source_id=EVENTS_DATA_SOURCE_ID,
-        start_cursor=response["next_cursor"]
-    )
-
+notion.pages.retrieve(page_id=HAWKKIT_EVENT_ID)
 print("Connection successful.")
 print()
-print("Events retrieved:", len(events))
 
 # ----------------------------------------------------------------------
-# FIND THE LITTER EVENT
+# RETRIEVE HAWKKIT PAGE
 # ----------------------------------------------------------------------
 
-matches = []
-
-for event in events:
-    event_text = get_event_text(event)
-
-    if SEARCH_TEXT.lower() in event_text.lower():
-        matches.append(event)
-
-print()
 print("=" * 70)
-print("TARGET EVENT SEARCH")
+print("HAWKKIT PAGE")
 print("=" * 70)
 
-print()
-print("Search text:")
-print(repr(SEARCH_TEXT))
+page = notion.pages.retrieve(page_id=HAWKKIT_EVENT_ID)
 
+print("Page ID:")
+print(HAWKKIT_EVENT_ID)
 print()
-print("Matches found:", len(matches))
 
-if not matches:
-    print()
-    print("ERROR: No event containing the search text was found.")
-    print()
-    print("Available event text:")
-    
-    for event in events:
+properties = page.get("properties", {})
+
+print("Property names:")
+print(list(properties.keys()))
+print()
+
+# ----------------------------------------------------------------------
+# INSPECT ALL RELEVANT PROPERTIES
+# ----------------------------------------------------------------------
+
+print("=" * 70)
+print("RELEVANT EVENT PROPERTIES")
+print("=" * 70)
+
+for property_name in [
+    "Name",
+    "Event",
+    "Subject of an Event",
+    "Subject Cat",
+    "Related Cats",
+    "Siblings",
+    "Parents",
+    "Historical Events",
+]:
+    if property_name not in properties:
+        print(property_name + ": NOT PRESENT")
         print()
-        print("ID:", event["id"])
-        print("Title:", repr(get_page_title(event)))
-        print("Event:", repr(get_event_text(event)))
+        continue
 
-    raise SystemExit(1)
+    prop = properties[property_name]
 
-if len(matches) > 1:
-    print()
-    print("WARNING: Multiple matching events found.")
+    print(property_name + ":")
+    print("  Type:", prop.get("type"))
 
-    for number, event in enumerate(matches, start=1):
-        print()
-        print("MATCH", number)
-        print("ID:", event["id"])
-        print("Event:", repr(get_event_text(event)))
+    prop_type = prop.get("type")
 
-    raise SystemExit(1)
+    if prop_type == "title":
+        value = prop.get("title", [])
+        print("  Text:", repr(get_plain_text(value)))
 
-event = matches[0]
-event_id = event["id"]
-properties = event.get("properties", {})
+    elif prop_type == "rich_text":
+        value = prop.get("rich_text", [])
+        print("  Text:", repr(get_plain_text(value)))
 
-print()
-print("Target event found.")
+    elif prop_type == "relation":
+        value = prop.get("relation", [])
+        print("  Relation IDs:", get_relation_ids(prop))
 
-print()
-print("Event ID:")
-print(event_id)
-
-print()
-print("Event:")
-print(get_event_text(event))
-
-# ----------------------------------------------------------------------
-# GET PARTICIPANTS
-# ----------------------------------------------------------------------
-
-subject_ids = get_relation_ids(
-    properties.get("Subject Cat")
-)
-
-related_ids = get_relation_ids(
-    properties.get("Related Cats")
-)
-
-participant_ids = []
-
-for cat_id in subject_ids:
-    if cat_id not in participant_ids:
-        participant_ids.append(cat_id)
-
-for cat_id in related_ids:
-    if cat_id not in participant_ids:
-        participant_ids.append(cat_id)
-
-print()
-print("=" * 70)
-print("EVENT PARTICIPANTS")
-print("=" * 70)
-
-print()
-print("SUBJECT CATS")
-
-for cat_id in subject_ids:
-    print(
-        get_cat_name(cat_id),
-        "(" + cat_id + ")"
-    )
-
-print()
-print("RELATED CATS")
-
-for cat_id in related_ids:
-    print(
-        get_cat_name(cat_id),
-        "(" + cat_id + ")"
-    )
-
-print()
-print("ALL PARTICIPANTS")
-
-participant_names = {}
-
-for cat_id in participant_ids:
-    name = get_cat_name(cat_id)
-    participant_names[cat_id] = name
-
-    print(
-        name,
-        "(" + cat_id + ")"
-    )
-
-# ----------------------------------------------------------------------
-# CHECK SIBLING RELATIONS
-# ----------------------------------------------------------------------
-
-print()
-print("=" * 70)
-print("SIBLING PROCESSING")
-print("=" * 70)
-
-print()
-print(
-    "A sibling relationship qualifies only when BOTH cats "
-    "are participants in this event."
-)
-
-qualifying_pairs = []
-qualified_cat_ids = []
-
-for cat_id in participant_ids:
-
-    cat_page = notion.pages.retrieve(page_id=cat_id)
-    cat_properties = cat_page.get("properties", {})
-
-    sibling_property = cat_properties.get("Siblings")
-
-    sibling_ids = get_relation_ids(sibling_property)
-
-    print()
-    print(
-        participant_names[cat_id],
-        "(" + cat_id + ")"
-    )
-
-    print("Existing Sibling IDs:")
-    print(sibling_ids)
-
-    found_pair = False
-
-    for sibling_id in sibling_ids:
-
-        if sibling_id not in participant_ids:
-            continue
-
-        sibling_name = participant_names.get(sibling_id)
-
-        if sibling_name is None:
-            sibling_name = get_cat_name(sibling_id)
-
-        pair = tuple(sorted([cat_id, sibling_id]))
-
-        if pair not in qualifying_pairs:
-            qualifying_pairs.append(pair)
-
-        if cat_id not in qualified_cat_ids:
-            qualified_cat_ids.append(cat_id)
-
-        if sibling_id not in qualified_cat_ids:
-            qualified_cat_ids.append(sibling_id)
-
-        print()
-        print(
-            "QUALIFYING SIBLING PAIR:",
-            participant_names[cat_id],
-            "<->",
-            sibling_name
-        )
-
-        found_pair = True
-
-    if found_pair:
-        print()
-        print("RESULT: qualifies.")
     else:
-        print()
-        print("RESULT: does NOT qualify.")
+        print("  Raw value:", prop.get(prop_type))
 
-# ----------------------------------------------------------------------
-# SHOW PROPOSED EVENT PROPERTY
-# ----------------------------------------------------------------------
-
-print()
-print("=" * 70)
-print("PROPOSED EVENT PROPERTY")
-print("=" * 70)
-
-print()
-print("Sibling Cats would contain:")
-
-if not qualified_cat_ids:
-    print("  - Nothing")
-
-else:
-    for cat_id in qualified_cat_ids:
-        print(
-            "  -",
-            participant_names[cat_id],
-            "(" + cat_id + ")"
-        )
-
-# ----------------------------------------------------------------------
-# EXPLICIT MAPLEPAW CHECK
-# ----------------------------------------------------------------------
-
-MAPLEPAW_ID = "3c09cd66-e972-80f9-9355-c0df84dd19ec"
-
-print()
-print("=" * 70)
-print("MAPLEPAW CHECK")
-print("=" * 70)
-
-print()
-print("Maplepaw:")
-print(MAPLEPAW_ID)
-
-print()
-print("Is Maplepaw an event participant?")
-print(MAPLEPAW_ID in participant_ids)
-
-print()
-print("Would Maplepaw be added to Sibling Cats?")
-print(MAPLEPAW_ID in qualified_cat_ids)
-
-if MAPLEPAW_ID not in participant_ids and MAPLEPAW_ID not in qualified_cat_ids:
     print()
-    print("RESULT: CORRECT.")
-    print(
-        "Maplepaw is a sibling of participating cats but is not "
-        "participating in this event, so he is excluded."
-    )
 
 # ----------------------------------------------------------------------
-# HYPOTHETICAL PAYLOAD
+# RETRIEVE PAGE CONTENT BLOCKS
 # ----------------------------------------------------------------------
 
-print()
 print("=" * 70)
-print("HYPOTHETICAL UPDATE PAYLOAD")
+print("PAGE CONTENT BLOCKS")
 print("=" * 70)
 
-payload = {
-    "properties": {
-        "Sibling Cats": {
-            "relation": [
-                {"id": cat_id}
-                for cat_id in qualified_cat_ids
-            ]
-        }
-    }
-}
+blocks = notion.blocks.children.list(block_id=HAWKKIT_EVENT_ID)
+
+print("Number of blocks returned:")
+print(len(blocks.get("results", [])))
+print()
+
+all_page_text = []
+
+for index, block in enumerate(blocks.get("results", []), start=1):
+    block_type = block.get("type")
+
+    print("BLOCK", index)
+    print("Type:", block_type)
+
+    block_data = block.get(block_type)
+
+    if isinstance(block_data, dict):
+        rich_text = block_data.get("rich_text")
+
+        if isinstance(rich_text, list):
+            text = get_plain_text(rich_text)
+
+            if text:
+                print("Text:")
+                print(repr(text))
+                all_page_text.append(text)
+
+    print("-" * 70)
 
 print()
-print("This payload is NOT being sent to Notion.")
-print()
-print(payload)
+
+# ----------------------------------------------------------------------
+# COMBINED EVENT TEXT
+# ----------------------------------------------------------------------
+
+print("=" * 70)
+print("COMBINED EVENT TEXT")
+print("=" * 70)
+
+combined_text = " ".join(all_page_text)
+
+if combined_text:
+    print(repr(combined_text))
+else:
+    print("NO PAGE TEXT FOUND.")
 
 print()
+
+# ----------------------------------------------------------------------
+# MAPLEPAW CHECK
+# ----------------------------------------------------------------------
+
+print("=" * 70)
+print("MAPLEPAW PARTICIPATION CHECK")
+print("=" * 70)
+
+print("Maplepaw ID:")
+print(MAPLEPAW_ID)
+print()
+
+maplepaw_in_any_relation = False
+
+for property_name in properties:
+    prop = properties[property_name]
+
+    if prop.get("type") != "relation":
+        continue
+
+    relation_ids = get_relation_ids(prop)
+
+    if MAPLEPAW_ID in relation_ids:
+        print("Maplepaw appears in relation property:")
+        print(property_name)
+        print()
+
+        maplepaw_in_any_relation = True
+
+if not maplepaw_in_any_relation:
+    print("Maplepaw is NOT present in any relation property on this event.")
+    print()
+
+# ----------------------------------------------------------------------
+# TEXT SEARCH
+# ----------------------------------------------------------------------
+
+print("=" * 70)
+print("ORPHANED LITTER TEXT SEARCH")
+print("=" * 70)
+
+search_phrases = [
+    "orphaned litter",
+    "dead monster",
+    "Cliffshock",
+    "Blackchirp",
+]
+
+for phrase in search_phrases:
+    found = phrase.lower() in combined_text.lower()
+
+    print(repr(phrase), "->", found)
+
+print()
+
 print("=" * 70)
 print("TEST COMPLETE")
 print("NO UPDATE API CALLS WERE MADE.")
