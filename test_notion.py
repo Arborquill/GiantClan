@@ -8,36 +8,66 @@ CAT_ID = "3c09cd66-e972-80f9-9355-c0df84dd19ec"
 notion = Client(auth=NOTION_TOKEN)
 
 
-def print_relation_property(name, prop):
+def inspect_relation(name, prop):
     print()
-    print(name + ":")
-    print("  Type:", prop.get("type"))
+    print(name)
+    print("-" * 70)
+
+    print("Property type:")
+    print(prop.get("type"))
+
+    print()
+    print("Raw property:")
+    print(prop)
 
     if prop.get("type") != "relation":
-        print("  Not a relation property.")
         return
 
-    relation = prop.get("relation", {})
+    relation = prop.get("relation")
 
-    print("  Full relation definition:")
+    print()
+    print("Raw relation value:")
     print(relation)
 
     print()
-    print("  Database ID:")
-    print(relation.get("database_id"))
+    print("Python type of relation value:")
+    print(type(relation).__name__)
 
-    print()
-    print("  Data source ID:")
-    print(relation.get("data_source_id"))
-
-    print()
-    print("  Relation type:")
-    print(relation.get("type"))
-
-    if "dual_property" in relation:
+    if isinstance(relation, dict):
         print()
-        print("  Dual property:")
-        print(relation.get("dual_property"))
+        print("Relation database ID:")
+        print(relation.get("database_id"))
+
+        print()
+        print("Relation data source ID:")
+        print(relation.get("data_source_id"))
+
+        print()
+        print("Relation type:")
+        print(relation.get("type"))
+
+        if "dual_property" in relation:
+            print()
+            print("Dual property:")
+            print(relation.get("dual_property"))
+
+    elif isinstance(relation, list):
+        print()
+        print("Relation is a list.")
+
+        for index, item in enumerate(relation):
+            print()
+            print("Relation item", index + 1)
+            print("Python type:", type(item).__name__)
+            print("Value:", item)
+
+            if isinstance(item, dict):
+                print("Database ID:", item.get("database_id"))
+                print("Data source ID:", item.get("data_source_id"))
+                print("Type:", item.get("type"))
+
+                if "dual_property" in item:
+                    print("Dual property:", item.get("dual_property"))
 
 
 print("=" * 70)
@@ -56,12 +86,8 @@ properties = cat.get("properties", {})
 
 print()
 print("=" * 70)
-print("CAT")
+print("MAPLEPAW")
 print("=" * 70)
-
-print()
-print("Cat:")
-print("Maplepaw")
 
 print()
 print("Cat ID:")
@@ -69,7 +95,7 @@ print(CAT_ID)
 
 print()
 print("=" * 70)
-print("EVENT-RELATED RELATION PROPERTIES")
+print("EVENT-RELATED PROPERTIES")
 print("=" * 70)
 
 for property_name in [
@@ -83,19 +109,10 @@ for property_name in [
         print(property_name + ": NOT PRESENT")
         continue
 
-    print_relation_property(
+    inspect_relation(
         property_name,
         properties[property_name]
     )
-
-print()
-print("=" * 70)
-print("ALL RELATION PROPERTIES")
-print("=" * 70)
-
-for property_name, prop in properties.items():
-    if prop.get("type") == "relation":
-        print_relation_property(property_name, prop)
 
 print()
 print("=" * 70)
