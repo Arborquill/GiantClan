@@ -1,3 +1,4 @@
+```python
 import os
 from notion_client import Client
 
@@ -9,14 +10,13 @@ EVENTS_DATA_SOURCE_ID = "3b79cd66-e972-8014-9954-000b6da417a8"
 CATS_DATABASE_ID = "9849cd66-e972-8390-b142-01cdd6b8b3a6"
 CATS_DATA_SOURCE_ID = "cf09cd66-e972-8293-8c29-073c01330f5b"
 
-notion = Client(auth=NOTION_TOKEN)
+# ------------------------------------------------------------
+# TARGET EVENT
+# ------------------------------------------------------------
 
-TARGET_EVENT_TITLE = (
-    "While out on a secret date, Cliffshock and Blackchirp find an orphaned "
-    "litter of kits in the wreckage of a dead monster. It isn't the direction "
-    "they expected their lives to be tugged, but their hearts brim with love "
-    "for them. Their gentle touch and affectionate purrs are the kits’ home now. "
-)
+EVENT_ID = "3c59cd66-e972-807b-978d-ce04f7968c42"
+
+notion = Client(auth=NOTION_TOKEN)
 
 RELATIONSHIP_PROPERTIES = {
     "Kit": "Kits",
@@ -130,28 +130,24 @@ print("EVENT RELATIONSHIP BUILD")
 print("=" * 70)
 print()
 
-print("Retrieving Event pages...")
-events = get_database_pages(EVENTS_DATA_SOURCE_ID)
+# ------------------------------------------------------------
+# RETRIEVE DATA
+# ------------------------------------------------------------
 
 print("Retrieving All Cats pages...")
 cats = get_database_pages(CATS_DATA_SOURCE_ID)
 
+print("Retrieving target Event...")
+
+event = notion.pages.retrieve(
+    page_id=EVENT_ID
+)
+
 print("Pages retrieved.")
 
 # ------------------------------------------------------------
-# FIND TARGET EVENT
+# EVENT
 # ------------------------------------------------------------
-
-event = None
-
-for page in events:
-    if get_title(page) == TARGET_EVENT_TITLE:
-        event = page
-        break
-
-if event is None:
-    print("ERROR: Target event was not found.")
-    raise SystemExit(1)
 
 event_id = event["id"]
 
@@ -192,6 +188,7 @@ cat_by_id = {
 participant_names = {}
 
 for cat_id in participant_ids:
+
     page = cat_by_id.get(cat_id)
 
     if page:
@@ -202,6 +199,7 @@ for cat_id in participant_ids:
 print()
 
 for cat_id in participant_ids:
+
     print(
         participant_names[cat_id],
         "->",
@@ -261,8 +259,11 @@ for relationship_type in relationship_types:
     print(event_property)
 
     if not source_property or not event_property:
+
         print("WARNING: Missing property mapping.")
+
         results[relationship_type] = []
+
         continue
 
     matching_ids = set()
@@ -295,9 +296,13 @@ for relationship_type in relationship_types:
     print("Will contain:")
 
     if not ordered_ids:
+
         print("[NONE]")
+
     else:
+
         for cat_id in ordered_ids:
+
             print(
                 participant_names.get(
                     cat_id,
@@ -357,7 +362,9 @@ maplepaw_id = None
 for page in cats:
 
     if get_title(page) == "Maplepaw":
+
         maplepaw_id = page["id"]
+
         break
 
 if maplepaw_id:
@@ -452,7 +459,9 @@ for relationship_type in relationship_types:
         print()
         print(event_property + ":")
         print("ERROR: Property was not returned.")
+
         verification_failed = True
+
         continue
 
     actual_ids = [
@@ -465,13 +474,18 @@ for relationship_type in relationship_types:
     print(event_property + ":")
     print("Expected:")
     print(expected_ids)
+
     print("Stored:")
     print(actual_ids)
 
     if actual_ids == expected_ids:
+
         print("VERIFICATION: PASS")
+
     else:
+
         print("VERIFICATION: FAIL")
+
         verification_failed = True
 
 # ------------------------------------------------------------
@@ -484,10 +498,20 @@ print("BUILD COMPLETE")
 print("=" * 70)
 
 if verification_failed:
-    print("WARNING: One or more Event relations failed read-back verification.")
+
+    print(
+        "WARNING: One or more Event relations "
+        "failed read-back verification."
+    )
+
 else:
-    print("SUCCESS: All calculated Event relations were stored correctly.")
+
+    print(
+        "SUCCESS: All calculated Event relations "
+        "were stored correctly."
+    )
 
 print()
 print("No All Cats pages were modified.")
 print("=" * 70)
+```
