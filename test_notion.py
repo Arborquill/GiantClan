@@ -9,7 +9,7 @@ print("Connecting to Notion...")
 print("Connection successful.")
 print()
 print("=" * 70)
-print("HISTORICAL EVENTS")
+print("HISTORICAL EVENTS RELATIONSHIP TEST")
 print("=" * 70)
 print()
 print("READ ONLY - NOTHING WILL BE CHANGED")
@@ -21,16 +21,41 @@ f"data_sources/{EVENTS}/query",
 {}
 )
 
-print("Query successful.")
-print("Top-level keys returned:")
-print(list(result.keys()))
+events = result.get("results", [])
+
+print("Events returned:", len(events))
 print()
 
-print("Number of events returned:")
-print(len(result.get("results", [])))
-print()
+for event in events:
+properties = event.get("properties", {})
 
+```
+name_property = properties.get("Name", {})
+name_items = name_property.get("title", [])
+
+event_name = ""
+
+for item in name_items:
+    event_name = event_name + item.get("plain_text", "")
+
+if not event_name:
+    event_name = "(untitled)"
+
+subject_property = properties.get("Subject Cat", {})
+subject_relations = subject_property.get("relation", [])
+
+related_property = properties.get("Related Cats", {})
+related_relations = related_property.get("relation", [])
+
+print("-" * 70)
+print("EVENT:", event_name)
+print("Event ID:", event.get("id"))
+print("Subject Cat IDs:", subject_relations)
+print("Related Cats IDs:", related_relations)
+```
+
+print()
 print("=" * 70)
-print("TEST COMPLETE")
+print("RELATIONSHIP TEST COMPLETE")
 print("No Notion pages or properties were modified.")
 print("=" * 70)
