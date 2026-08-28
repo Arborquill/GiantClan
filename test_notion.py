@@ -1,4 +1,3 @@
-```python
 import os
 from notion_client import Client
 
@@ -519,4 +518,3 @@ else:
 print()
 print("No All Cats pages were modified.")
 print("=" * 70)
-```
