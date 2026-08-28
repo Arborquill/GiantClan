@@ -4,6 +4,7 @@ from notion_client import Client
 NOTION_TOKEN = os.environ["NOTION_TOKEN"]
 
 EVENTS_DATABASE_ID = "3b79cd66-e972-80d0-aa83-de1c481c6ef6"
+EVENTS_DATA_SOURCE_ID = "3b79cd66-e972-8014-9954-000b6da417a8"
 
 notion = Client(auth=NOTION_TOKEN)
 
@@ -27,28 +28,37 @@ print("Database retrieved successfully.")
 
 print()
 print("=" * 70)
-print("DATABASE RESPONSE KEYS")
+print("DATA SOURCE SCHEMA")
 print("=" * 70)
 
-for key in database.keys():
-    print(key)
+data_source = notion.data_sources.retrieve(
+    data_source_id=EVENTS_DATA_SOURCE_ID
+)
+
+print("Data source ID:")
+print(EVENTS_DATA_SOURCE_ID)
 
 print()
-print("=" * 70)
-print("DATA SOURCES")
-print("=" * 70)
+print("Data source name:")
+print(data_source.get("name"))
 
-data_sources = database.get("data_sources", [])
+print()
+print("Properties returned by Notion API:")
 
-print("Number of data sources:")
-print(len(data_sources))
+properties = data_source.get("properties", {})
 
-for data_source in data_sources:
+for property_name, property_data in properties.items():
     print()
-    print("Data source:")
-    print(data_source)
+    print(property_name)
+    print("Property type:")
+    print(property_data.get("type"))
+    print("Property ID:")
+    print(property_data.get("id"))
 
 print()
 print("=" * 70)
-print("END TEST")
+print("END SCHEMA")
 print("=" * 70)
+
+print()
+print("READ ONLY - NO DATABASES, PAGES, OR PROPERTIES WERE MODIFIED.")
