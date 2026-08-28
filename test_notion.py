@@ -1,103 +1,149 @@
-import os
 from notion_client import Client
+import os
 
-notion = Client(auth=os.environ["NOTION_TOKEN"])
 
-EVENTS = "3b79cd66-e972-8014-9954-000b6da417a8"
+NOTION_TOKEN = os.environ["NOTION_TOKEN"]
+HISTORICAL_EVENTS_DATA_SOURCE_ID = "3b79cd66-e972-8014-9954-000b6da417a8"
+
+
+def get_page(page_id):
+    return notion.request(
+        path=f"pages/{page_id}",
+        method="GET"
+    )
+
+
+def get_first_event():
+    response = notion.request(
+        path=f"data_sources/{HISTORICAL_EVENTS_DATA_SOURCE_ID}/query",
+        method="POST",
+        body={
+            "page_size": 1
+        }
+    )
+
+    if not response.get("results"):
+        print("No events were returned.")
+        return None
+
+    return response["results"][0]
+
+
+def get_relation_ids(properties, property_name):
+    prop = properties.get(property_name)
+
+    if not prop:
+        return []
+
+    if prop.get("type") != "relation":
+        return []
+
+    return [
+        item["id"]
+        for item in prop.get("relation", [])
+    ]
+
+
+def get_page_name(page):
+    properties = page.get("properties", {})
+    name_property = properties.get("Name") or properties.get("Event")
+
+    if not name_property:
+        return "(no name property)"
+
+    title_data = name_property.get("title", [])
+
+    if title_data:
+        return title_data[0].get("plain_text", "(unnamed)")
+
+    rich_text_data = name_property.get("rich_text", [])
+
+    if rich_text_data:
+        return rich_text_data[0].get("plain_text", "(unnamed)")
+
+    return "(unnamed)"
+
+
+def inspect_relationship_type(event):
+    print("=" * 70)
+    print("RELATIONSHIP TYPE TEST")
+    print("=" * 70)
+    print("READ ONLY - NOTHING WILL BE CHANGED")
+    print()
+
+    event_id = event["id"]
+    event_name = get_page_name(event)
+
+    print("Event:")
+    print(event_name)
+    print()
+
+    properties = event["properties"]
+
+    subject_ids = get_relation_ids(
+        properties,
+        "Subject Cat"
+    )
+
+    related_ids = get_relation_ids(
+        properties,
+        "Related Cats"
+    )
+
+    print("Subject Cat IDs:")
+    print(subject_ids)
+    print()
+
+    print("Related Cats IDs:")
+    print(related_ids)
+    print()
+
+    print("-" * 70)
+    print("SUBJECT CATS")
+    print("-" * 70)
+
+    for i, cat_id in enumerate(subject_ids, start=1):
+        cat = get_page(cat_id)
+        print(f"Subject Cat {i}: {get_page_name(cat)}")
+        print(f"ID: {cat_id}")
+        print()
+
+    print("-" * 70)
+    print("RELATED CATS")
+    print("-" * 70)
+
+    for i, cat_id in enumerate(related_ids, start=1):
+        cat = get_page(cat_id)
+        print(f"Related Cat {i}: {get_page_name(cat)}")
+        print(f"ID: {cat_id}")
+        print()
+
+    relationship_property = properties.get("Relationship Type")
+
+    print("-" * 70)
+    print("RELATIONSHIP TYPE FORMULA RESULT")
+    print("-" * 70)
+
+    if relationship_property:
+        print(relationship_property)
+    else:
+        print("Relationship Type property was not found.")
+
+    print()
+    print("=" * 70)
+    print("TEST COMPLETE")
+    print("No Notion pages or properties were modified.")
+    print("=" * 70)
+
 
 print("Connecting to Notion...")
+
+notion = Client(auth=NOTION_TOKEN)
+
 print("Connection successful.")
 print()
-print("=" * 70)
-print("RELATION ID TO CAT NAME TEST")
-print("=" * 70)
-print()
-print("READ ONLY - NOTHING WILL BE CHANGED")
-print()
 
-result = notion.request(
-f"data_sources/{EVENTS}/query",
-"POST",
-{}
-)
+event = get_first_event()
 
-events = result.get("results", [])
-event = events[0]
-properties = event.get("properties", {})
-
-subject_property = properties.get("Subject Cat", {})
-subject_relations = subject_property.get("relation", [])
-
-related_property = properties.get("Related Cats", {})
-related_relations = related_property.get("relation", [])
-
-print("Subject Cat IDs:")
-print(subject_relations)
-print()
-
-print("Related Cats IDs:")
-print(related_relations)
-print()
-
-subject_id_1 = subject_relations[0]["id"]
-subject_id_2 = subject_relations[1]["id"]
-subject_id_3 = subject_relations[2]["id"]
-subject_id_4 = subject_relations[3]["id"]
-
-related_id_1 = related_relations[0]["id"]
-
-cat_1 = notion.request(
-f"pages/{subject_id_1}",
-"GET"
-)
-
-cat_2 = notion.request(
-f"pages/{subject_id_2}",
-"GET"
-)
-
-cat_3 = notion.request(
-f"pages/{subject_id_3}",
-"GET"
-)
-
-cat_4 = notion.request(
-f"pages/{subject_id_4}",
-"GET"
-)
-
-cat_5 = notion.request(
-f"pages/{related_id_1}",
-"GET"
-)
-
-name_1 = cat_1.get("properties", {}).get("Name", {}).get("title", [])
-name_2 = cat_2.get("properties", {}).get("Name", {}).get("title", [])
-name_3 = cat_3.get("properties", {}).get("Name", {}).get("title", [])
-name_4 = cat_4.get("properties", {}).get("Name", {}).get("title", [])
-name_5 = cat_5.get("properties", {}).get("Name", {}).get("title", [])
-
-print("CAT 1 NAME DATA:")
-print(name_1)
-print()
-
-print("CAT 2 NAME DATA:")
-print(name_2)
-print()
-
-print("CAT 3 NAME DATA:")
-print(name_3)
-print()
-
-print("CAT 4 NAME DATA:")
-print(name_4)
-print()
-
-print("CAT 5 NAME DATA:")
-print(name_5)
-print()
-
-print("=" * 70)
-print("TEST COMPLETE")
-print("No Notion pages or properties were modified.")
-print("=" * 70)
+if event:
+    inspect_relationship_type(event)
