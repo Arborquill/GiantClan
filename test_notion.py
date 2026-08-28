@@ -26,35 +26,26 @@ events = result.get("results", [])
 print("Events returned:", len(events))
 print()
 
-for event in events:
+event = events[0]
 properties = event.get("properties", {})
 
-```
-name_property = properties.get("Name", {})
-name_items = name_property.get("title", [])
-
-event_name = ""
-
-for item in name_items:
-    event_name = event_name + item.get("plain_text", "")
-
-if not event_name:
-    event_name = "(untitled)"
-
-subject_property = properties.get("Subject Cat", {})
-subject_relations = subject_property.get("relation", [])
-
-related_property = properties.get("Related Cats", {})
-related_relations = related_property.get("relation", [])
-
+print("FIRST EVENT")
 print("-" * 70)
-print("EVENT:", event_name)
 print("Event ID:", event.get("id"))
-print("Subject Cat IDs:", subject_relations)
-print("Related Cats IDs:", related_relations)
-```
-
 print()
+
+print("Property names:")
+print(list(properties.keys()))
+print()
+
+print("Subject Cat:")
+print(properties.get("Subject Cat"))
+print()
+
+print("Related Cats:")
+print(properties.get("Related Cats"))
+print()
+
 print("=" * 70)
 print("RELATIONSHIP TEST COMPLETE")
 print("No Notion pages or properties were modified.")
