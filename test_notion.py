@@ -1,3 +1,4 @@
+```python
 import os
 from notion_client import Client
 
@@ -11,10 +12,11 @@ CATS_DATA_SOURCE_ID = "cf09cd66-e972-8293-8c29-073c01330f5b"
 
 notion = Client(auth=NOTION_TOKEN)
 
-TARGET_EVENT_TITLE = (
-    "Blackchirp did a poor job of explaining a fighting move to Growlpaw "
-    "and Blackchirp yelled at her"
-)
+# ------------------------------------------------------------
+# TARGET EVENT
+# ------------------------------------------------------------
+
+EVENT_ID = "3c59cd66-e972-807b-a437-c3242956a733"
 
 RELATIONSHIP_PROPERTIES = {
     "Kit": "Kits",
@@ -134,48 +136,15 @@ print()
 # RETRIEVE DATA
 # ------------------------------------------------------------
 
-print("Retrieving Event pages...")
-events = get_database_pages(EVENTS_DATA_SOURCE_ID)
+print("Retrieving Event...")
+event = notion.pages.retrieve(
+    page_id=EVENT_ID
+)
 
 print("Retrieving All Cats pages...")
 cats = get_database_pages(CATS_DATA_SOURCE_ID)
 
 print("Pages retrieved.")
-
-# ------------------------------------------------------------
-# FIND TARGET EVENT
-# ------------------------------------------------------------
-
-event = None
-
-for page in events:
-
-    title = get_title(page)
-
-    if title == TARGET_EVENT_TITLE:
-        event = page
-        break
-
-if event is None:
-
-    print("ERROR: Target event was not found.")
-    print()
-    print("Events containing 'Blackchirp' and 'Growlpaw':")
-
-    for page in events:
-
-        title = get_title(page)
-
-        if "Blackchirp" in title and "Growlpaw" in title:
-
-            print()
-            print("Title:")
-            print(title)
-
-            print("ID:")
-            print(page["id"])
-
-    raise SystemExit(1)
 
 event_id = event["id"]
 
@@ -550,3 +519,4 @@ else:
 print()
 print("No All Cats pages were modified.")
 print("=" * 70)
+```
