@@ -1,4 +1,3 @@
-```python
 import os
 from notion_client import Client
 
